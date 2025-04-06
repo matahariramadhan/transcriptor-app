@@ -75,7 +75,8 @@ def main():
     parser.add_argument(
         "--output-filename-template",
         default=DEFAULT_FILENAME_TEMPLATE,
-        help=f"Template for the output transcript filename (without extension). Uses yt-dlp field names. (default: \"{DEFAULT_FILENAME_TEMPLATE}\")"
+        # Prevent argparse from trying to format the default template string during help generation
+        help=f"Template for the output transcript filename (without extension). Uses yt-dlp field names. Default: \"{DEFAULT_FILENAME_TEMPLATE.replace('%', '%%')}\""
     )
     parser.add_argument(
         "--language",
