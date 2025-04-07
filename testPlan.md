@@ -62,20 +62,23 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 
 ### 4.2 Integration Testing
 
-- **Goal:** Verify the interaction and data flow between different modules (`main` -> `downloader` -> `transcriber` -> `formatter`).
+- **Goal:** Verify the interaction and data flow within the core `pipeline.run_pipeline` function, mocking external dependencies (`yt-dlp`, Lemonfox API, filesystem).
 - **Tools:**
-  - **Framework:** `pytest` (using fixtures for setup/teardown).
-  - **Mocking:** `unittest.mock` to mock external library calls (e.g., `yt_dlp.YoutubeDL().download`, `openai.Client().audio.transcriptions.create`).
-  - **Filesystem Helpers:** `pytest` fixtures (e.g., `tmp_path`) or standard libraries (`tempfile`, `os`, `shutil`) for managing temporary directories and files.
-  - **Test Data:** Store mock input data (e.g., sample audio files for mocked download, sample API response dictionaries) in a dedicated `tests/data` directory.
+  - **Framework:** `pytest` (using fixtures for setup/teardown, e.g., from `conftest.py`).
+  - **Mocking:** `unittest.mock` to mock function calls within the pipeline (e.g., `download_audio_python_api`, `transcribe_audio_lemonfox`, `generate_txt`, `generate_srt`) and external libraries (`yt_dlp.YoutubeDL`).
+  - **Filesystem Helpers:** `pytest` fixtures (e.g., `tmp_path`) for managing temporary directories and files.
+  - **Test Data:** Defined in `tests/integration/conftest.py` or specific test files.
 - **Scope/Targets:**
-  - Test `main.py` orchestration logic.
-  - Mock `download_audio_python_api` to return a path to a pre-existing local test audio file (from `tests/data`).
-  - Mock `transcribe_audio_lemonfox` to return a predefined mock result dictionary (from `tests/data`) based on the input audio path/test case.
-  - Verify `main.py` correctly handles the data returned from mocked modules (focus on the _contract_ - ensuring the correct data structures are passed and received).
-  - Verify `main.py` calls `formatter.py` functions with the expected data.
-  - Verify that the expected output files (`.txt`, `.srt`) are created in a temporary test directory (`tmp_path`) with content matching the mocked transcript data.
-  - Test the flow for both single URL and multiple URL inputs (mocking results for each URL in the batch).
+  - Test the `pipeline.run_pipeline` function directly.
+  - Mock `download_audio_python_api` to return a path to a dummy audio file created in `tmp_path`.
+  - Mock `transcribe_audio_lemonfox` to return a predefined mock result dictionary.
+  - Mock `generate_txt` and `generate_srt` to verify they are called correctly (or allow them to write to `tmp_path` and check content).
+  - Mock `yt_dlp.YoutubeDL` used for filename extraction within the pipeline.
+  - Verify the pipeline function correctly handles data returned from mocked components.
+  - Verify the pipeline function correctly handles different arguments/flags (e.g., `--keep-audio`, `--speaker-labels`).
+  - Verify the pipeline function returns the expected summary dictionary (`processed_count`, `failed_urls`).
+  - Verify expected output files are created (or attempted) in the temporary test directory (`tmp_path`).
+  - Test scenarios like single URL success, multiple URLs with failures, formatting failures, etc.
 
 ### 4.3 End-to-End (E2E) Testing
 
@@ -118,11 +121,28 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 
 ## 6. Test Organization & Execution
 
-- **Directory Structure:** Organize test files logically, e.g., `tests/unit/`, `tests/integration/`, `tests/e2e/`. Store test data in `tests/data/`.
-- **Test Runner:** Execute tests using the `pytest` command from the project root.
+- **Directory Structure:** Organize test files logically:
+  - Unit tests: `tests/unit/`
+  - Integration tests: `tests/integration/` (using `conftest.py` for shared fixtures/data)
+  - E2E tests (planned): `tests/e2e/`
+  - Test data (if needed beyond mocks): `tests/data/`
+- **Test Runner:** Execute tests using the `pytest` command from the project root. `pytest` will automatically discover tests in subdirectories.
+  ```bash
+  # Run all tests (unit and integration)
+  pytest
+  # Run only unit tests
+  pytest tests/unit/
+  # Run only integration tests
+  pytest tests/integration/
+  ```
 - **Coverage Reporting:** Measure test coverage using `pytest-cov` (included in `requirements-dev.txt`). Run with:
   ```bash
+  # Coverage for all tests
   pytest --cov=src tests/
+  # Coverage for unit tests only
+  pytest --cov=src tests/unit/
+  # Coverage for integration tests only
+  pytest --cov=src tests/integration/
   ```
   The report helps identify untested parts of the codebase.
 - **CI Integration:** Integrate automated execution of unit and integration tests (and potentially E2E smoke tests), including coverage reporting, into a Continuous Integration (CI) pipeline (e.g., GitHub Actions) to ensure tests run automatically on code changes.

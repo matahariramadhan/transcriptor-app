@@ -131,7 +131,7 @@ python src/main.py --help
 
 ## Testing
 
-This project uses `pytest` for unit testing.
+This project uses `pytest` for unit and integration testing.
 
 1.  **Install Development Dependencies:**
     Make sure you have activated your virtual environment (`source .venv/bin/activate`). Then install the necessary packages:
@@ -141,7 +141,7 @@ This project uses `pytest` for unit testing.
     ```
 
 2.  **Run Tests:**
-    Execute the following command from the project root directory:
+    Execute the following command from the project root directory to run all tests (unit and integration):
 
     ```bash
     pytest
@@ -163,7 +163,7 @@ This project uses `pytest` for unit testing.
 
     This will run all tests in the `tests/` directory and report coverage for the `src/` directory.
 
-See `testPlan.md` for a detailed overview of the testing strategy, including unit, integration, and end-to-end testing approaches.
+See `testPlan.md` for a detailed overview of the testing strategy (unit, integration, E2E) and the structure of the tests (`tests/unit/`, `tests/integration/`).
 
 ## Contributing
 
