@@ -6,7 +6,8 @@ Based on the technical design outlined in `technical_design.md`.
 
 ## Features
 
-- Downloads audio from video URLs using `yt-dlp`.
+- Downloads audio from one or more video URLs provided as arguments using `yt-dlp`.
+- Processes multiple URLs sequentially, continuing even if one URL fails.
 - Transcribes audio using the Lemonfox API (via the `openai` library).
 - Supports selecting different Whisper models available on Lemonfox.
 - Optionally requests speaker labels (if supported by the Lemonfox model).
@@ -72,7 +73,7 @@ Based on the technical design outlined in `technical_design.md`.
 
 Run the application from your terminal within the activated virtual environment.
 
-**Basic Example:**
+**Basic Example (Single URL):**
 
 ```bash
 python src/main.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
@@ -86,10 +87,10 @@ This will:
 - Save the intermediate audio file in `./transcripts/_audio_files/`.
 - Delete the intermediate audio file upon completion.
 
-**Example with Options:**
+**Example with Multiple URLs and Options:**
 
 ```bash
-python src/main.py "VIDEO_URL" \
+python src/main.py "URL_1" "URL_2" "URL_3" \
     --output-dir ./my_output \
     --model whisper-large-v3 \
     --formats srt \
@@ -103,10 +104,10 @@ python src/main.py "VIDEO_URL" \
 
 This command:
 
-- Uses the specified `VIDEO_URL`.
-- Saves output to the `./my_output` directory.
-- Uses the `whisper-large-v3` model.
-- Only generates an `.srt` file.
+- Processes `URL_1`, `URL_2`, and `URL_3` sequentially.
+- Saves output for each URL to the `./my_output` directory.
+- Uses the `whisper-large-v3` model for each transcription.
+- Only generates an `.srt` file for each URL.
 - Extracts intermediate audio as `.opus`.
 - Names the output file like `Channel Name - Video Title.srt`.
 - Hints the language is English.

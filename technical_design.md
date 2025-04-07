@@ -29,8 +29,8 @@ Developers involved in the implementation, testing, and future maintenance of `T
 
 ### 2.1 In Scope (Version 1.0)
 
-- **Input:** Accept single video URLs via command-line arguments. Supported platforms: YouTube, TikTok, Instagram (leveraging `yt-dlp`'s capabilities).
-- **Downloading:** Utilize `yt-dlp`'s Python API to download and extract audio.
+- **Input:** Accept one or more video URLs via command-line arguments (space-separated). Supported platforms: YouTube, TikTok, Instagram (leveraging `yt-dlp`'s capabilities).
+- **Downloading:** Utilize `yt-dlp`'s Python API to download and extract audio for each URL.
 - **Audio Format:** Extract audio into common formats like `MP3` or `Opus` (configurable).
 - **Transcription:** Use the standard `openai` Python library, configured to point to the Lemonfox API endpoint, to perform transcription. Allow selection of Whisper model size (e.g., `tiny`, `base`, `small`, `medium`, `large` - assuming Lemonfox supports these via the `model` parameter) via CLI argument. Optionally support Lemonfox features like `speaker_labels`.
 - **Output Formats:** Generate transcripts in plain text (`.txt`) and SubRip Subtitle (`.srt`) formats. Allow selection of desired formats via CLI argument.
@@ -76,22 +76,25 @@ The application will be divided into the following Python modules:
 
 ### 3.3 Data Flow
 
-1.  User executes `python main.py <URL> [options]`.
-2.  `main.py` parses arguments.
-3.  `main.py` calls `downloader.download_audio_python_api(url, output_options)`.
-4.  `downloader.py` uses `yt-dlp` API to download/extract audio, saves file (e.g., `audio_files_api/youtube_VIDEOID.mp3`).
-5.  `downloader.py` returns the audio file path (string) to `main.py`.
-6.  `main.py` calls `transcriber.transcribe_audio_lemonfox(audio_path, model_name, api_key, **kwargs)`. _(Note: API key management needs secure handling)_.
-7.  `transcriber.py` initializes the `openai` client with the Lemonfox base URL (`https://api.lemonfox.ai/v1`) and API key.
-8.  `transcriber.py` calls `client.audio.transcriptions.create()` with the audio file, model, and other optional parameters (like `language`, `speaker_labels`).
-9.  `transcriber.py` returns the transcription result (dictionary, potentially including speaker labels if requested) to `main.py`.
-10. `main.py` iterates through desired output formats.
-11. `main.py` calls `formatter.generate_srt(transcript_result, output_path_srt)`.
-12. `formatter.py` formats data and writes `.srt` file.
-13. `main.py` calls `formatter.generate_txt(transcript_result, output_path_txt)`.
-14. `formatter.py` formats data and writes `.txt` file.
-15. `main.py` reports completion status.
-16. (Optional) `main.py` or modules can clean up intermediate audio files if desired.
+1.  User executes `python main.py <URL1> <URL2> ... [options]`.
+2.  `main.py` parses arguments, obtaining a list of URLs.
+3.  `main.py` enters a loop, iterating through each URL in the list.
+4.  **Inside the loop for each URL:**
+    a. `main.py` calls `downloader.download_audio_python_api(current_url, output_options)`.
+    b. `downloader.py` uses `yt-dlp` API to download/extract audio, saves file (e.g., `audio_files_api/youtube_VIDEOID.mp3`).
+    c. `downloader.py` returns the audio file path (string) to `main.py`. If download fails, logs error and `main.py` continues to the next URL.
+    d. `main.py` calls `transcriber.transcribe_audio_lemonfox(audio_path, model_name, api_key, **kwargs)`. _(Note: API key management needs secure handling)_.
+    e. `transcriber.py` initializes the `openai` client with the Lemonfox base URL (`https://api.lemonfox.ai/v1`) and API key.
+    f. `transcriber.py` calls `client.audio.transcriptions.create()` with the audio file, model, and other optional parameters (like `language`, `speaker_labels`).
+    g. `transcriber.py` returns the transcription result (dictionary) to `main.py`. If transcription fails, logs error and `main.py` continues to the next URL.
+    h. `main.py` determines the base filename for the current URL using the output template.
+    i. `main.py` iterates through desired output formats (`.txt`, `.srt`).
+    j. `main.py` calls `formatter.generate_srt(transcript_result, output_path_srt)`.
+    k. `formatter.py` formats data and writes `.srt` file.
+    l. `main.py` calls `formatter.generate_txt(transcript_result, output_path_txt)`.
+    m. `formatter.py` formats data and writes `.txt` file.
+    n. (Optional) `main.py` cleans up the intermediate audio file for the current URL if requested.
+5.  **After the loop:** `main.py` reports a summary of successful and failed URLs.
 
 ### 3.4 Error Handling Strategy
 
@@ -104,7 +107,7 @@ The application will be divided into the following Python modules:
 
 ### 4.1 `main.py` (CLI & Orchestrator)
 
-- **Responsibilities:** Parse CLI args (`url`, `--output-dir`, `--model`, `--formats`, `--audio-format`). Validate inputs. Call downloader, transcriber, formatter in sequence. Handle errors returned from modules. Print status messages.
+- **Responsibilities:** Parse CLI args (accepting multiple `urls`, `--output-dir`, etc.). Validate inputs. Iterate through the list of URLs. For each URL: call downloader, transcriber, formatter in sequence. Handle errors returned from modules gracefully (log and continue to next URL). Determine output filenames based on template and current URL info. Print status messages per URL and a final batch summary. Manage audio file cleanup per URL.
 - **Interface:** Uses `argparse`.
 
 ### 4.2 `downloader.py` (Downloader Module)
