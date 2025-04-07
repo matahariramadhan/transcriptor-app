@@ -16,3 +16,13 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# Testing artifacts
+.pytest_cache/
+.coverage
+
+# Generated output
+transcripts/
+
+# IDE / Editor configuration
+.vscode/

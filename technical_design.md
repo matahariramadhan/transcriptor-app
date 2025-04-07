@@ -153,6 +153,7 @@ The application will be divided into the following Python modules:
 - **Development/Setup Tools:**
   - `pip`
   - `Git` (Optional)
+  - `pytest-cov` (for test coverage)
 
 ## 6. Data Structures
 
@@ -236,3 +237,14 @@ The application will be divided into the following Python modules:
 ## 10. Document History
 
 - **v1.0 (2025-04-06):** Initial draft based on discussion. Updated to use Lemonfox API. Styled for readability.
+
+## 11. Testing Strategy
+
+A comprehensive testing strategy is outlined in `testPlan.md`. The approach includes:
+
+- **Unit Testing:** Using `pytest` and `unittest.mock` to test individual functions and modules in isolation (primarily focusing on `formatter.py`, with mocked dependencies for `downloader.py` and `transcriber.py`).
+- **Integration Testing:** Using `pytest` and mocking to verify the interactions and data flow between the core modules (`main`, `downloader`, `transcriber`, `formatter`).
+- **End-to-End (E2E) Testing:** Using `subprocess` to execute the CLI application and verify critical user workflows, including handling multiple URLs and common options.
+- **Manual Functional Testing:** For exploratory testing, usability checks, and verifying scenarios not covered by automated tests.
+
+The tests are organized within a `tests/` directory structure (`tests/unit`, `tests/integration`, etc.) and can be executed using the `pytest` command after installing development dependencies from `requirements-dev.txt`. Test coverage can be measured using `pytest --cov=src`. Refer to `testPlan.md` for full details and specific test cases.

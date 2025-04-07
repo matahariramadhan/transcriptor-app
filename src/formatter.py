@@ -9,11 +9,20 @@ logger = logging.getLogger(__name__)
 
 def _format_timestamp(seconds: float, separator: str = ',') -> str:
     """Formats seconds into SRT timestamp format (HH:MM:SS,ms)."""
+    if seconds < 0:
+        # Handle negative timestamps gracefully, treat as 00:00:00,000
+        # Optionally, log a warning here if needed
+        logger.warning(f"Received negative timestamp ({seconds}s), formatting as 00:00:00,000.")
+        seconds = 0
     delta = timedelta(seconds=seconds)
-    hours, remainder = divmod(delta.total_seconds(), 3600)
-    minutes, seconds = divmod(remainder, 60)
-    milliseconds = int((seconds - int(seconds)) * 1000)
-    return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}{separator}{milliseconds:03}"
+    # Use integer arithmetic based on total seconds and microseconds for precision
+    total_seconds_int = int(delta.total_seconds())
+    hours = total_seconds_int // 3600
+    minutes = (total_seconds_int % 3600) // 60
+    secs = total_seconds_int % 60
+    # timedelta.microseconds contains the fractional part in microseconds
+    milliseconds = delta.microseconds // 1000
+    return f"{hours:02}:{minutes:02}:{secs:02}{separator}{milliseconds:03}"
 
 def generate_txt(transcript_result: Dict[str, Any], output_path: str) -> bool:
     """
@@ -98,12 +107,19 @@ def generate_srt(transcript_result: Dict[str, Any], output_path: str) -> bool:
     for i, segment in enumerate(segments):
         start_time = segment.get('start')
         end_time = segment.get('end')
-        text = segment.get('text', '').strip()
+        raw_text = segment.get('text') # Get text, might be None
         speaker = segment.get('speaker') # Optional speaker label
 
-        if start_time is None or end_time is None or not text:
+        # Check for missing required fields *before* processing text
+        if start_time is None or end_time is None or raw_text is None:
             logger.warning(f"Skipping segment {i+1} due to missing start/end time or text.")
             continue
+
+        # Now process text, ensuring it's a string before stripping
+        text = str(raw_text).strip()
+        if not text: # Also skip if text becomes empty after stripping
+             logger.warning(f"Skipping segment {i+1} due to empty text after stripping.")
+             continue
 
         segment_count += 1
         start_str = _format_timestamp(start_time)

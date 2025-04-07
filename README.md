@@ -47,9 +47,15 @@ Based on the technical design outlined in `technical_design.md`.
     ```
 
 3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+
+    - **For running the application:**
+      ```bash
+      pip install -r requirements.txt
+      ```
+    - **For development (including tests):**
+      ```bash
+      pip install -r requirements.txt -r requirements-dev.txt
+      ```
 
 ## Configuration
 
@@ -122,6 +128,42 @@ Run the following command to see all available command-line options:
 ```bash
 python src/main.py --help
 ```
+
+## Testing
+
+This project uses `pytest` for unit testing.
+
+1.  **Install Development Dependencies:**
+    Make sure you have activated your virtual environment (`source .venv/bin/activate`). Then install the necessary packages:
+
+    ```bash
+    pip install -r requirements.txt -r requirements-dev.txt
+    ```
+
+2.  **Run Tests:**
+    Execute the following command from the project root directory:
+
+    ```bash
+    pytest
+    ```
+
+    Or for more detailed output:
+
+    ```bash
+    pytest -v
+    ```
+
+    **Running Tests with Coverage:**
+
+    To measure code coverage using `pytest-cov` (included in development dependencies), run:
+
+    ```bash
+    pytest --cov=src tests/
+    ```
+
+    This will run all tests in the `tests/` directory and report coverage for the `src/` directory.
+
+See `testPlan.md` for a detailed overview of the testing strategy, including unit, integration, and end-to-end testing approaches.
 
 ## Contributing
 

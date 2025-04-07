@@ -116,15 +116,18 @@ def transcribe_audio_lemonfox(
     except RateLimitError as e:
         logger.error(f"Lemonfox rate limit exceeded: {e}")
         return None
-    except APIConnectionError as e:
+    except APIConnectionError as e: # Correct indentation
         logger.error(f"Could not connect to Lemonfox API: {e}")
         return None
-    except APIError as e:
-        logger.error(f"Lemonfox API error: Status={e.status_code}, Message={e.message}")
+    except APIError as e: # Correct indentation
+        # Safely access potential attributes
+        status_code = getattr(e, 'status_code', 'N/A')
+        message = getattr(e, 'message', str(e))
+        logger.error(f"Lemonfox API error: Status={status_code}, Message={message}")
         return None
-    except FileNotFoundError:
+    except FileNotFoundError: # Correct indentation
         logger.error(f"Audio file not found during transcription attempt: {audio_path}")
-        return None
+        return None # Correct indentation and placement
     except Exception as e:
         logger.exception(f"An unexpected error occurred during transcription: {e}")
         return None
