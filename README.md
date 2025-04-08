@@ -153,6 +153,17 @@ This project uses `pytest` for unit and integration testing.
     pytest -v
     ```
 
+    **Running Specific Test Types:**
+
+    ```bash
+    # Run only unit tests
+    pytest tests/unit/
+    # Run only integration tests
+    pytest tests/integration/
+    # Run only end-to-end tests (requires network and API key in .env)
+    pytest tests/e2e/
+    ```
+
     **Running Tests with Coverage:**
 
     To measure code coverage using `pytest-cov` (included in development dependencies), run:
@@ -161,9 +172,9 @@ This project uses `pytest` for unit and integration testing.
     pytest --cov=src tests/
     ```
 
-    This will run all tests in the `tests/` directory and report coverage for the `src/` directory.
+    This will run all tests (unit and integration by default, or specify paths) in the `tests/` directory and report coverage for the `src/` directory.
 
-See `testPlan.md` for a detailed overview of the testing strategy (unit, integration, E2E) and the structure of the tests (`tests/unit/`, `tests/integration/`).
+See `testPlan.md` for a detailed overview of the testing strategy (unit, integration, E2E) and the structure of the tests (`tests/unit/`, `tests/integration/`, `tests/e2e/`).
 
 ## Contributing
 

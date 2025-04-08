@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2025-04-08
+
+### Added
+
+- End-to-End (E2E) tests (`tests/e2e/`) using `pytest` and `subprocess` to verify core CLI functionality against real services (yt-dlp, Lemonfox API).
+- E2E tests cover single/multiple URL success, options (`--formats`, `--keep-audio`), partial failure, missing API key loading, and invalid URL handling.
+
+### Fixed
+
+- Adjusted application logging (`src/main.py`) to send INFO level logs to `stdout` and WARNING/ERROR levels to `stderr` for better separation and compatibility with CLI expectations.
+- Updated E2E tests to check correct output streams (`stdout`/`stderr`) for log messages and summary info.
+- Corrected E2E test helper (`run_transcriptor_cli`) to use the Python interpreter from the virtual environment (`.venv/bin/python`).
+
 ## [1.1.2] - 2025-04-07
 
 ### Added

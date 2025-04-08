@@ -84,18 +84,18 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 
 - **Goal:** Test the complete application flow from the command line, including interaction with real external dependencies (network, `yt-dlp`, Lemonfox API).
 - **Tools:**
-  - **Execution:** Python's `subprocess` module.
-  - **Assertion/Verification:** Standard Python assertions, `os.path` checks, file content comparison, exit code checking. Consider comparing generated output files against 'golden' reference files stored in `tests/data` for key scenarios.
-  - **Framework (Optional):** `pytest` to structure tests and manage environment (e.g., setting API key via env var for the subprocess, cleaning up output).
-- **Scope/Targets (Critical Path / Smoke Tests):**
-  - Run `python src/main.py <URL>` with a stable, short test URL (e.g., public domain audio on YouTube). Verify exit code 0 and creation of default `txt`/`srt` files in `transcripts/`.
-  - Run with `--output-dir`, `--formats`, `--model` options and verify outputs are placed/formatted correctly.
+  - **Framework:** `pytest` (for structuring tests, fixtures like `tmp_path`, and test execution).
+  - **Execution:** Python's `subprocess` module (specifically `subprocess.run`) to execute the CLI script (`.venv/bin/python src/main.py ...`).
+  - **Assertion/Verification:** Standard Python assertions, `pathlib.Path` checks for files/directories, file content comparison, exit code checking.
+- **Scope/Targets (Implemented in `tests/e2e/test_cli_flow.py`):**
+  - Run with single valid URLs (YouTube Short, TikTok) and default options. Verify exit code 0 and creation of default `txt`/`srt` files in a temporary directory.
+  - Run with multiple valid URLs. Verify successful processing of both, correct output file count, successful exit code, and expected summary log.
+  - Run with specific options like `--formats srt` and `--keep-audio`. Verify correct output files are generated/kept.
   - Run with `--keep-audio` and verify the audio file persists.
-  - Run with multiple valid URLs. Verify sequential processing in logs, output files for each, exit code 0, and correct summary log.
-  - Run with one valid and one invalid URL. Verify successful processing of the valid URL, error logging for the invalid one, continuation of the script, correct summary log, and non-zero exit code.
-  - Run without `LEMONFOX_API_KEY` set. Verify appropriate error message and exit code 1.
-  - Run with an invalid URL format. Verify appropriate error message and non-zero exit code.
-- **Challenges & Considerations:** Dependency on live services, API costs, test flakiness, need for stable test URLs.
+  - Run with one valid and one invalid URL. Verify successful processing of the valid URL, error logging (stderr) for the invalid one, continuation of the script, correct summary log (stdout/stderr), and non-zero exit code.
+  - Verify successful execution when `LEMONFOX_API_KEY` is loaded from the `.env` file (confirming the 'key not found' error is _not_ shown).
+  - Run with an invalid (non-video) URL format. Verify appropriate error message (stderr) and non-zero exit code.
+- **Challenges & Considerations:** Dependency on live services, API costs, test flakiness, need for stable test URLs. Relies on `.env` file for API key during testing.
 
 ### 4.4 Manual Functional Testing
 
@@ -124,16 +124,18 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 - **Directory Structure:** Organize test files logically:
   - Unit tests: `tests/unit/`
   - Integration tests: `tests/integration/` (using `conftest.py` for shared fixtures/data)
-  - E2E tests (planned): `tests/e2e/`
+  - E2E tests: `tests/e2e/`
   - Test data (if needed beyond mocks): `tests/data/`
 - **Test Runner:** Execute tests using the `pytest` command from the project root. `pytest` will automatically discover tests in subdirectories.
   ```bash
-  # Run all tests (unit and integration)
+  # Run all tests (unit, integration, e2e)
   pytest
   # Run only unit tests
   pytest tests/unit/
   # Run only integration tests
   pytest tests/integration/
+  # Run only E2E tests
+  pytest tests/e2e/
   ```
 - **Coverage Reporting:** Measure test coverage using `pytest-cov` (included in `requirements-dev.txt`). Run with:
   ```bash

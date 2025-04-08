@@ -24,13 +24,36 @@ except ImportError:
 
 
 # Configure logging
-# Use basicConfig with force=True to ensure it's configured even if imported elsewhere
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    force=True
-)
+def setup_logging(level=logging.INFO):
+    """Configures logging handlers for stdout (INFO) and stderr (WARNING+)."""
+    # Get the root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    # Remove existing handlers attached to the root logger
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    # Handler for INFO level -> stdout
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setLevel(logging.INFO)
+    stdout_handler.addFilter(lambda record: record.levelno == logging.INFO) # Only INFO
+    stdout_handler.setFormatter(log_formatter)
+    root_logger.addHandler(stdout_handler)
+
+    # Handler for WARNING and above -> stderr
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.WARNING) # Catch WARNING, ERROR, CRITICAL
+    stderr_handler.setFormatter(log_formatter)
+    root_logger.addHandler(stderr_handler)
+
+# Initial setup
+setup_logging()
+# Get the specific logger for the app after setup
 logger = logging.getLogger("TranscriptorApp")
+
 
 # --- Constants ---
 DEFAULT_OUTPUT_DIR = "transcripts"
@@ -116,11 +139,9 @@ def main():
     args = parser.parse_args()
 
     if args.verbose:
-        # Set root logger level
-        logging.getLogger().setLevel(logging.DEBUG)
-        # Also set our specific logger level if needed
-        logger.setLevel(logging.DEBUG)
-        logger.info("Verbose logging enabled.")
+        # Reconfigure logging level if verbose is enabled
+        setup_logging(logging.DEBUG)
+        logger.info("Verbose logging enabled.") # This will now go to stdout
 
     # --- Directory Setup ---
     try:

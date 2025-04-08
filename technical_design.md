@@ -252,7 +252,7 @@ A comprehensive testing strategy is outlined in `testPlan.md`. The approach incl
 
 - **Unit Testing:** Using `pytest` and `unittest.mock` to test individual functions and modules in isolation (primarily focusing on `formatter.py`, with mocked dependencies for `downloader.py` and `transcriber.py`).
 - **Integration Testing:** Using `pytest` and mocking (`unittest.mock`) in `tests/integration/` to verify the interaction and data flow within the `pipeline.run_pipeline` function and its calls to `downloader`, `transcriber`, and `formatter`. Mocks external dependencies (yt-dlp API, Lemonfox API, filesystem for output).
-- **End-to-End (E2E) Testing:** Using `subprocess` to execute the CLI application (`python src/main.py ...`) and verify critical user workflows against real external services (requires network, API key).
+- **End-to-End (E2E) Testing:** Implemented using `pytest` and `subprocess` in `tests/e2e/` to execute the CLI application (`python src/main.py ...`) and verify critical user workflows against real external services (requires network, API key). Covers core success/failure scenarios and option handling.
 - **Manual Functional Testing:** For exploratory testing, usability checks, and verifying scenarios not covered by automated tests.
 
-The tests are organized within a `tests/` directory structure (`tests/unit/`, `tests/integration/`). They can be executed using the `pytest` command after installing development dependencies from `requirements-dev.txt`. Test coverage can be measured using `pytest --cov=src tests/`. Refer to `testPlan.md` for full details and specific test cases.
+The tests are organized within a `tests/` directory structure (`tests/unit/`, `tests/integration/`, `tests/e2e/`). They can be executed using the `pytest` command after installing development dependencies from `requirements-dev.txt`. Test coverage can be measured using `pytest --cov=src tests/`. Refer to `testPlan.md` for full details and specific test cases.
