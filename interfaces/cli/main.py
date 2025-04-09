@@ -8,19 +8,19 @@ import yt_dlp # Added yt_dlp import here
 
 # Add src directory to Python path to allow sibling imports
 # Not strictly necessary if run as a module, but good for direct execution
-# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import sys
+# Add project root to Python path to allow imports like `from core import ...`
+# This assumes the script is run from the project root (e.g., python interfaces/cli/main.py)
+# Or that the project is installed as a package.
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
-try:
-    from .downloader import download_audio_python_api
-    from .transcriber import transcribe_audio_lemonfox
-    from .formatter import generate_txt, generate_srt
-    from .pipeline import run_pipeline # Import the new pipeline function
-except ImportError:
-    # Fallback for running the script directly
-    from downloader import download_audio_python_api
-    from transcriber import transcribe_audio_lemonfox
-    from formatter import generate_txt, generate_srt
-    from pipeline import run_pipeline # Import the new pipeline function
+# Now import from the core package
+from core.downloader import download_audio_python_api
+from core.transcriber import transcribe_audio_lemonfox
+from core.formatter import generate_txt, generate_srt
+from core.pipeline import run_pipeline
 
 
 # Configure logging
@@ -163,11 +163,28 @@ def main():
 
     logger.info(f"Starting processing for {len(urls_to_process)} URL(s).")
 
+    # --- Prepare Config for Pipeline ---
+    pipeline_config = {
+        "model": args.model,
+        "formats": args.formats,
+        "audio_format": args.audio_format,
+        "output_filename_template": args.output_filename_template,
+        "language": args.language,
+        "prompt": args.prompt,
+        "temperature": args.temperature,
+        "speaker_labels": args.speaker_labels,
+        "keep_audio": args.keep_audio,
+        # Note: output_dir is passed separately to run_pipeline now
+        # Note: verbose is handled by logger setup, not needed in core pipeline config
+    }
+
+    # --- Run Pipeline ---
     pipeline_results = run_pipeline(
         urls_to_process=urls_to_process,
         api_key=api_key,
-        args=args,
-        audio_output_dir=audio_output_dir
+        config=pipeline_config,
+        audio_output_dir=audio_output_dir,
+        output_dir=args.output_dir # Pass main output dir explicitly
     )
 
     # --- Final Summary ---

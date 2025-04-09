@@ -1,4 +1,3 @@
-import argparse
 import os
 import logging
 from typing import List, Optional, Dict, Any
@@ -17,20 +16,40 @@ except ImportError:
 
 logger = logging.getLogger("TranscriptorApp.Pipeline") # Use a child logger
 
+# Define default values used within the pipeline if not provided in config
+# These might differ slightly from CLI defaults if the CLI handles them
+DEFAULT_AUDIO_FORMAT_CORE = "mp3"
+DEFAULT_MODEL_CORE = "whisper-1"
+DEFAULT_OUTPUT_FORMATS_CORE = ["txt", "srt"]
+DEFAULT_FILENAME_TEMPLATE_CORE = "%(title)s [%(id)s]"
+DEFAULT_TEMPERATURE_CORE = 0.0
+
 def run_pipeline(
     urls_to_process: List[str],
     api_key: str,
-    args: argparse.Namespace,
-    audio_output_dir: str
+    config: Dict[str, Any],
+    audio_output_dir: str,
+    output_dir: str # Pass main output dir explicitly
 ) -> Dict[str, Any]:
     """
-    Runs the core transcription pipeline for a list of URLs.
+    Runs the core transcription pipeline for a list of URLs using a configuration dictionary.
 
     Args:
         urls_to_process: List of URLs to process.
         api_key: The Lemonfox API key.
-        args: The parsed command-line arguments namespace.
+        config: A dictionary containing configuration options like:
+            'model': str (e.g., 'whisper-1')
+            'formats': List[str] (e.g., ['txt', 'srt'])
+            'audio_format': str (e.g., 'mp3')
+            'output_filename_template': str (yt-dlp template)
+            'language': Optional[str]
+            'prompt': Optional[str]
+            'temperature': float
+            'speaker_labels': bool
+            'keep_audio': bool
         audio_output_dir: The directory to store intermediate audio files.
+        output_dir: The main directory to save final transcript files.
+
 
     Returns:
         A dictionary containing processing results, e.g.,
@@ -64,9 +83,9 @@ def run_pipeline(
             audio_filename_template = "%(id)s"
             logger.info("Step 1: Downloading and extracting audio...")
             audio_path = download_audio_python_api(
-                url=current_url, # Use current_url from loop
+                url=current_url,
                 output_dir=audio_output_dir,
-                audio_format=args.audio_format,
+                audio_format=config.get('audio_format', DEFAULT_AUDIO_FORMAT_CORE),
                 output_template=audio_filename_template
             )
             if not audio_path:
@@ -78,22 +97,23 @@ def run_pipeline(
 
             # --- Transcribe Audio ---
             logger.info("Step 2: Transcribing audio...")
-            # Prepare transcription arguments
+            # Prepare transcription arguments from config
             transcribe_args = {
-                "language": args.language,
-                "prompt": args.prompt,
-                "temperature": args.temperature,
-                "speaker_labels": args.speaker_labels,
-                "response_format": 'verbose_json' # Needed for SRT
+                "language": config.get('language'),
+                "prompt": config.get('prompt'),
+                "temperature": config.get('temperature', DEFAULT_TEMPERATURE_CORE),
+                "speaker_labels": config.get('speaker_labels', False),
+                "response_format": 'verbose_json' # Needed for SRT generation from segments
             }
             # Filter out None values before passing to API
-            transcribe_args = {k: v for k, v in transcribe_args.items() if v is not None and v is not False} # Also filter False for speaker_labels if not set
+            # Keep speaker_labels=False if explicitly set to False in config, otherwise default is False above
+            transcribe_args_filtered = {k: v for k, v in transcribe_args.items() if v is not None}
 
             transcript_result = transcribe_audio_lemonfox(
                 audio_path=audio_path,
-                model_name=args.model,
+                model_name=config.get('model', DEFAULT_MODEL_CORE),
                 api_key=api_key,
-                **transcribe_args
+                **transcribe_args_filtered
             )
             if not transcript_result:
                 logger.error(f"Audio transcription failed for {current_url}. Skipping.")
@@ -128,19 +148,22 @@ def run_pipeline(
                      # Use playlist info directly if available
                      pass # info_dict already contains playlist info
 
-                 base_filename = ydl_filename_extractor.prepare_filename(info_dict, outtmpl=args.output_filename_template)
+                 output_filename_template = config.get('output_filename_template', DEFAULT_FILENAME_TEMPLATE_CORE)
+                 base_filename = ydl_filename_extractor.prepare_filename(info_dict, outtmpl=output_filename_template)
                  # Remove extension that prepare_filename might add if template doesn't have one
+                 # (prepare_filename often adds .webm or similar if no ext in template)
                  base_filename, _ = os.path.splitext(base_filename)
                  logger.info(f"Using base filename for transcripts: {base_filename}")
             except Exception as e:
-                logger.warning(f"Could not extract info for filename template for {current_url}, using fallback '{base_filename}': {e}")
+                 logger.warning(f"Could not extract info for filename template for {current_url}, using fallback '{base_filename}': {e}")
 
-            # Use the main output dir from args for the final transcript files
-            output_base_path = os.path.join(args.output_dir, base_filename)
+            # Use the main output dir passed explicitly for the final transcript files
+            output_base_path = os.path.join(output_dir, base_filename)
             format_success_count = 0
-            total_formats = len(args.formats)
+            requested_formats = config.get('formats', DEFAULT_OUTPUT_FORMATS_CORE)
+            total_formats = len(requested_formats)
 
-            for fmt in args.formats:
+            for fmt in requested_formats:
                 output_file_path = f"{output_base_path}.{fmt}"
                 logger.info(f"Generating {fmt.upper()} format...")
                 success = False
@@ -178,7 +201,8 @@ def run_pipeline(
                  failed_urls_list.append(current_url)
         finally:
             # --- Cleanup (runs even if errors occurred mid-process for a URL) ---
-            if audio_path and os.path.exists(audio_path) and not args.keep_audio:
+            keep_audio = config.get('keep_audio', False)
+            if audio_path and os.path.exists(audio_path) and not keep_audio:
                 try:
                     logger.info(f"Cleaning up intermediate audio file: {audio_path}")
                     os.remove(audio_path)
@@ -193,10 +217,10 @@ def run_pipeline(
                             logger.debug(f"Audio directory not empty or error removing, skipping: {audio_output_dir}")
                 except OSError as e:
                     logger.warning(f"Could not remove intermediate audio file {audio_path}: {e}")
-            elif audio_path and args.keep_audio:
+            elif audio_path and keep_audio:
                  logger.info(f"Intermediate audio file kept at: {audio_path}")
 
-            logger.info(f"--- Finished processing URL: {current_url} ---")
+            logger.info(f"--- Finished processing URL: {current_url} ({'Success' if url_success else 'Failed'}) ---")
 
     logger.info(f"Pipeline finished. Processed: {processed_urls_count}, Failed: {len(failed_urls_list)}")
 

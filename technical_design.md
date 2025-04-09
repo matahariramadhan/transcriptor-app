@@ -66,22 +66,27 @@ The application follows a pipeline architecture initiated from a command-line in
 
 ### 3.2 Modularity
 
-The application will be divided into the following Python modules:
+The application is structured into distinct packages:
 
-- `main.py`: Entry point. Handles CLI parsing (`argparse`), environment setup (API key, logging), directory creation, calls the pipeline, and reports final summary/exit code.
-- `pipeline.py`: Contains the core `run_pipeline` function which orchestrates the process flow for a list of URLs (download -> transcribe -> format loop), handles per-URL errors, manages cleanup, and returns results.
-- `downloader.py`: Contains the `download_audio_python_api` function using `yt_dlp.YoutubeDL`. Responsible for fetching the URL and outputting an audio file path.
-- `transcriber.py`: Contains the `transcribe_audio_lemonfox` function using the `openai` library configured for Lemonfox. Takes an audio path, returns a structured transcription result.
-- `formatter.py`: Contains `generate_txt`, `generate_srt`, and potentially other format-generating functions. Takes the transcription result, outputs formatted files.
-- `utils.py` (Optional): For shared helper functions or constants.
+- **`core/`**: Contains the core transcription engine logic, independent of any specific interface.
+  - `pipeline.py`: Orchestrates the download -> transcribe -> format process for a list of URLs based on a configuration dictionary.
+  - `downloader.py`: Handles audio downloading and extraction using `yt-dlp`.
+  - `transcriber.py`: Interacts with the Lemonfox API via the `openai` library.
+  - `formatter.py`: Formats the transcription results into TXT, SRT, etc.
+- **`interfaces/`**: Contains different ways to interact with the `core` engine.
+  - `cli/`: The command-line interface.
+    - `main.py`: Parses CLI arguments (`argparse`), sets up logging, prepares the configuration dictionary, calls `core.pipeline.run_pipeline`, and handles output/exit codes.
+  - `web/` (Planned): Will contain the local web UI (FastAPI application, templates, static files).
+- `utils.py` (Optional): Could be placed at the root or within `core` for shared helper functions.
 
 ### 3.3 Data Flow
 
-1.  User executes `python main.py <URL1> <URL2> ... [options]`.
-2.  `main.py` parses arguments, obtaining a list of URLs.
-3.  `main.py` calls `pipeline.run_pipeline(urls, api_key, args, audio_output_dir)`.
-4.  `pipeline.py` enters a loop, iterating through each URL in the list.
-5.  **Inside the loop for each URL (within `pipeline.py`):**
+1.  User executes `python interfaces/cli/main.py <URL1> <URL2> ... [options]`.
+2.  `interfaces/cli/main.py` parses arguments using `argparse`.
+3.  `interfaces/cli/main.py` creates a configuration dictionary (`config`) from the parsed arguments.
+4.  `interfaces/cli/main.py` calls `core.pipeline.run_pipeline(urls, api_key, config, audio_output_dir, output_dir)`.
+5.  `core/pipeline.py` enters a loop, iterating through each URL in the list.
+6.  **Inside the loop for each URL (within `core/pipeline.py`):**
     a. `pipeline.py` calls `downloader.download_audio_python_api(current_url, audio_output_dir, ...)`.
     b. `downloader.py` uses `yt-dlp` API to download/extract audio, saves file.
     c. `downloader.py` returns the audio file path (string) to `pipeline.py`. If download fails, logs error and `pipeline.py` continues to the next URL, adding it to the failed list.
@@ -95,43 +100,44 @@ The application will be divided into the following Python modules:
     k. `pipeline.py` calls `formatter.generate_txt(transcript_result, output_path_txt)`.
     l. `formatter.py` formats data and writes `.txt` file.
     m. `pipeline.py` tracks if all formats succeeded for the URL.
-    n. (Optional) `pipeline.py` cleans up the intermediate audio file for the current URL if requested.
-6.  **After the loop:** `pipeline.py` returns a summary dictionary (processed count, failed URLs) to `main.py`.
-7.  `main.py` uses the summary dictionary to print the final report and set the exit code.
+    n. (Optional) `core/pipeline.py` cleans up the intermediate audio file for the current URL based on the `keep_audio` setting in the `config` dictionary.
+7.  **After the loop:** `core/pipeline.py` returns a summary dictionary (processed count, failed URLs) to `interfaces/cli/main.py`.
+8.  `interfaces/cli/main.py` uses the summary dictionary to print the final report and set the exit code.
 
 ### 3.4 Error Handling Strategy
 
 - Each module function (`download_audio_python_api`, `transcribe_audio_lemonfox`, etc.) will use `try...except` blocks to catch relevant exceptions (e.g., `yt_dlp.utils.DownloadError`, `openai.APIError`, `FileNotFoundError`, general `Exception`).
 - Errors will be logged using Python's `logging` module.
-- Functions will return `None` or raise a custom application exception upon failure to signal the orchestrator (`main.py`) to halt the process for that URL.
-- `main.py` will catch errors from module calls and report failure to the user with informative messages, including relevant error details where possible.
+- Functions within `core` will return `None` or specific error indicators upon failure.
+- The `core.pipeline.run_pipeline` function handles errors from `downloader`, `transcriber`, and `formatter` for each URL, logs them, and adds the URL to a failed list, allowing processing to continue for other URLs. It returns a summary including the list of failed URLs.
+- `interfaces/cli/main.py` receives the summary and sets the appropriate exit code based on whether any URLs failed.
 
 ## 4. Component Breakdown
 
-### 4.1 `main.py` (Entry Point & Setup/Teardown)
+### 4.1 `interfaces/cli/main.py` (CLI Entry Point & Setup/Teardown)
 
-- **Responsibilities:** Parse CLI args (`argparse`). Load API key (`dotenv`). Configure logging. Create output directories. Call `pipeline.run_pipeline`. Print final summary based on pipeline results. Set exit code.
+- **Responsibilities:** Parse CLI args (`argparse`). Load API key (`dotenv`). Configure logging. Create output directories. Prepare the `config` dictionary for the core pipeline. Call `core.pipeline.run_pipeline`. Print final summary based on pipeline results. Set exit code.
 - **Interface:** Command-line execution.
 
-### 4.X `pipeline.py` (Core Pipeline Logic)
+### 4.2 `core/pipeline.py` (Core Pipeline Logic)
 
-- **Responsibilities:** Implement `run_pipeline`. Iterate through the list of URLs. For each URL: initialize filename extractor, call downloader, transcriber, formatter in sequence. Handle errors returned from modules gracefully (log and continue to next URL, track failures). Determine output filenames based on template and current URL info. Manage audio file cleanup per URL. Return summary results.
-- **Interface:** `run_pipeline(urls_to_process: List[str], api_key: str, args: argparse.Namespace, audio_output_dir: str) -> Dict[str, Any]`
+- **Responsibilities:** Implement `run_pipeline`. Iterate through the list of URLs. For each URL: initialize filename extractor, call downloader, transcriber, formatter in sequence based on the `config` dictionary. Handle errors returned from modules gracefully (log and continue to next URL, track failures). Determine output filenames based on template and current URL info. Manage audio file cleanup per URL based on `config`. Return summary results.
+- **Interface:** `run_pipeline(urls_to_process: List[str], api_key: str, config: Dict[str, Any], audio_output_dir: str, output_dir: str) -> Dict[str, Any]`
 
-### 4.2 `downloader.py` (Downloader Module)
+### 4.3 `core/downloader.py` (Downloader Module)
 
-- **Responsibilities:** Implement `download_audio_python_api` using `yt_dlp.YoutubeDL`. Configure `ydl_opts` based on input parameters (output path/template, audio format). Use `FFmpegExtractAudio` postprocessor. Determine and return the final audio file path reliably (using `prepare_filename`). Handle `yt-dlp` specific errors.
+- **Responsibilities:** Implement `download_audio_python_api` using `yt_dlp.YoutubeDL`. Configure `ydl_opts` based on input parameters (output path/template, audio format). Use `FFmpegExtractAudio` postprocessor. Determine and return the final audio file path reliably. Handle `yt-dlp` specific errors.
 - **Interface:** `download_audio_python_api(url: str, output_dir: str, audio_format: str, output_template: str) -> Optional[str]`
 
-### 4.3 `transcriber.py` (Transcriber Module)
+### 4.4 `core/transcriber.py` (Transcriber Module)
 
-- **Responsibilities:** Implement `transcribe_audio_lemonfox`. Initialize the `openai` client with the Lemonfox base URL (`https://api.lemonfox.ai/v1`) and the user's Lemonfox API key (passed securely, e.g., via environment variable or config). Call `client.audio.transcriptions.create()` passing the audio file, model name, and any other desired parameters (e.g., `language`, `response_format`, `speaker_labels`). Return the result dictionary received from the API. Handle API-related exceptions (e.g., authentication errors, rate limits, network issues).
-- **Interface:** `transcribe_audio_lemonfox(audio_path: str, model_name: str, api_key: str, **kwargs) -> Optional[dict]` (Example signature, actual implementation might vary based on how API key is managed).
+- **Responsibilities:** Implement `transcribe_audio_lemonfox`. Initialize the `openai` client with the Lemonfox base URL and API key. Call `client.audio.transcriptions.create()` passing the audio file and parameters derived from the `config` dictionary (model, language, speaker labels, etc.). Return the result dictionary. Handle API-related exceptions.
+- **Interface:** `transcribe_audio_lemonfox(audio_path: str, model_name: str, api_key: str, **kwargs) -> Optional[dict]`
 
-### 4.4 `formatter.py` (Formatter Module)
+### 4.5 `core/formatter.py` (Formatter Module)
 
 - **Responsibilities:** Implement `generate_txt` and `generate_srt`. Take the structured result from the transcriber. Format timestamps correctly for SRT. Write output to specified file paths.
-- **Interface:** `generate_txt(transcript_result: dict, output_path: str)`, `generate_srt(transcript_result: dict, output_path: str)`
+- **Interface:** `generate_txt(transcript_result: dict, output_path: str) -> bool`, `generate_srt(transcript_result: dict, output_path: str) -> bool`
 
 ## 5. Technology Stack
 
@@ -165,7 +171,7 @@ The application will be divided into the following Python modules:
 
 ## 6. Data Structures
 
-- **Configuration:** `argparse.Namespace` object holding CLI arguments. `ydl_opts` dictionary for `yt-dlp`. Lemonfox API Key (managed securely, e.g., env var `LEMONFOX_API_KEY`).
+- **Configuration:** CLI arguments parsed by `argparse` in `interfaces/cli/main.py`. Configuration dictionary passed to `core.pipeline.run_pipeline`. Lemonfox API Key (managed securely via `.env` file loaded by `interfaces/cli/main.py`).
 - **Intermediate:** Audio file path (string). Lemonfox transcription result (dict): Structure depends on `response_format` and `speaker_labels`. Example (with `speaker_labels=true`):
   ```json
   {
@@ -206,10 +212,10 @@ The application will be divided into the following Python modules:
   3.  Create virtual environment: `python -m venv .venv`
   4.  Activate environment: `source .venv/bin/activate` (Linux/macOS) or `.venv\Scripts\activate` (Windows).
   5.  Install Python dependencies: `pip install -r requirements.txt` (A `requirements.txt` file should list `yt-dlp`, `openai`).
-  6.  Ensure Lemonfox API Key is available (e.g., set as an environment variable `LEMONFOX_API_KEY`).
+  6.  Ensure Lemonfox API Key is available in a `.env` file in the project root.
 - **Running:**
   ```bash
-  python main.py <URL> --model whisper-1 --formats txt srt --output-dir ./transcripts
+  python interfaces/cli/main.py <URL> --model whisper-1 --formats txt srt --output-dir ./transcripts
   ```
 
 ## 8. Potential Challenges and Risks
@@ -252,7 +258,7 @@ A comprehensive testing strategy is outlined in `testPlan.md`. The approach incl
 
 - **Unit Testing:** Using `pytest` and `unittest.mock` to test individual functions and modules in isolation (primarily focusing on `formatter.py`, with mocked dependencies for `downloader.py` and `transcriber.py`).
 - **Integration Testing:** Using `pytest` and mocking (`unittest.mock`) in `tests/integration/` to verify the interaction and data flow within the `pipeline.run_pipeline` function and its calls to `downloader`, `transcriber`, and `formatter`. Mocks external dependencies (yt-dlp API, Lemonfox API, filesystem for output).
-- **End-to-End (E2E) Testing:** Implemented using `pytest` and `subprocess` in `tests/e2e/` to execute the CLI application (`python src/main.py ...`) and verify critical user workflows against real external services (requires network, API key). Covers core success/failure scenarios and option handling.
+- **End-to-End (E2E) Testing:** Implemented using `pytest` and `subprocess` in `tests/e2e/` to execute the CLI application (`python interfaces/cli/main.py ...`) and verify critical user workflows against real external services (requires network, API key). Covers core success/failure scenarios and option handling.
 - **Manual Functional Testing:** For exploratory testing, usability checks, and verifying scenarios not covered by automated tests.
 
-The tests are organized within a `tests/` directory structure (`tests/unit/`, `tests/integration/`, `tests/e2e/`). They can be executed using the `pytest` command after installing development dependencies from `requirements-dev.txt`. Test coverage can be measured using `pytest --cov=src tests/`. Refer to `testPlan.md` for full details and specific test cases.
+The tests are organized within a `tests/` directory structure (`tests/unit/`, `tests/integration/`, `tests/e2e/`). They can be executed using the `pytest` command after installing development dependencies from `requirements-dev.txt`. Test coverage can be measured using `pytest --cov=core tests/`. Refer to `testPlan.md` for full details and specific test cases.

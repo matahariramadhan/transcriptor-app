@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-04-09
+
+### Changed
+
+- Refactored project structure for better modularity:
+  - Renamed `src` directory to `core`.
+  - Created `interfaces/cli` directory for command-line interface.
+  - Moved CLI entry point (`main.py`) to `interfaces/cli/main.py`.
+- Decoupled core pipeline logic (`core/pipeline.py`) from `argparse` by accepting a configuration dictionary instead of a namespace object.
+- Updated CLI (`interfaces/cli/main.py`) to create the configuration dictionary and call the refactored pipeline.
+- Updated all unit, integration, and E2E tests (`tests/`) to reflect the new structure, import paths, and pipeline signature.
+- Updated documentation (`README.md`, `technical_design.md`, `testPlan.md`) to align with the refactored structure.
+
 ## [1.1.3] - 2025-04-08
 
 ### Added

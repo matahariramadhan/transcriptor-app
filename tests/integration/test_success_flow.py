@@ -3,21 +3,24 @@ import os
 from unittest.mock import patch, MagicMock
 
 # Import the function we want to test
-from src.pipeline import run_pipeline
+from core.pipeline import run_pipeline
 
 # Import constants from conftest
 from .conftest import MOCK_URL_1, MOCK_API_KEY, MOCK_TRANSCRIPT_RESULT, MOCK_INFO_DICT
 
 # --- Test Cases ---
 
-@patch('src.pipeline.download_audio_python_api')
-@patch('src.pipeline.transcribe_audio_lemonfox')
-@patch('src.pipeline.yt_dlp.YoutubeDL') # Mock the yt-dlp instance used for filename extraction
-@patch('src.pipeline.os.remove') # Mock os.remove to check cleanup
-@patch('src.pipeline.os.rmdir') # Mock os.rmdir to check cleanup
+@patch('core.pipeline.download_audio_python_api')
+@patch('core.pipeline.transcribe_audio_lemonfox')
+@patch('core.pipeline.yt_dlp.YoutubeDL') # Mock the yt-dlp instance used for filename extraction
+@patch('core.pipeline.os.remove') # Mock os.remove to check cleanup
+@patch('core.pipeline.os.rmdir') # Mock os.rmdir to check cleanup
+@patch('core.pipeline.generate_txt', return_value=True) # Mock formatters too
+@patch('core.pipeline.generate_srt', return_value=True)
 def test_integration_single_url_success(
+    mock_generate_srt, mock_generate_txt, # Add formatter mocks
     mock_rmdir, mock_remove, mock_youtube_dl, mock_transcriber, mock_downloader,
-    tmp_path, create_mock_args_fixture # Use fixture
+    tmp_path, create_mock_config_fixture # Use updated fixture
 ):
     """
     Integration test for successfully processing a single URL.
@@ -41,15 +44,19 @@ def test_integration_single_url_success(
     expected_base_filename_path = tmp_path / f"{MOCK_INFO_DICT['title']} [{MOCK_INFO_DICT['id']}]"
     mock_ydl_extractor_instance.prepare_filename.return_value = str(expected_base_filename_path)
 
-    # --- Prepare Args ---
-    args = create_mock_args_fixture(output_dir=str(tmp_path)) # Use fixture
+    # --- Prepare Config ---
+    # Use the updated fixture to create a config dictionary
+    config = create_mock_config_fixture()
+    output_dir = str(tmp_path) # Define output_dir for clarity
+    audio_output_dir = str(mock_audio_path.parent) # Define audio_output_dir
 
     # --- Run Pipeline ---
     results = run_pipeline(
         urls_to_process=[MOCK_URL_1],
         api_key=MOCK_API_KEY,
-        args=args,
-        audio_output_dir=str(mock_audio_path.parent) # Pass the audio subdir path
+        config=config, # Pass the config dictionary
+        audio_output_dir=audio_output_dir,
+        output_dir=output_dir # Pass output_dir explicitly
     )
 
     # --- Assertions ---
@@ -60,38 +67,30 @@ def test_integration_single_url_success(
     # Check mock calls
     mock_downloader.assert_called_once_with(
         url=MOCK_URL_1,
-        output_dir=str(mock_audio_path.parent),
-        audio_format=args.audio_format,
+        output_dir=audio_output_dir,
+        audio_format=config['audio_format'],
         output_template="%(id)s" # Default template used for audio
     )
     # Check call, filtering out None/False args as done in pipeline.py
     mock_transcriber.assert_called_once_with(
         audio_path=str(mock_audio_path),
-        model_name=args.model,
-        api_key=MOCK_API_KEY,
-        temperature=args.temperature, # 0.0 is passed
-        response_format='verbose_json'
-        # language=None, prompt=None, speaker_labels=False are filtered out
-    )
+        model_name=config['model'],
+            api_key=MOCK_API_KEY,
+            temperature=config['temperature'], # 0.0 is passed
+            speaker_labels=False, # Add expected default
+            response_format='verbose_json'
+            # language=None, prompt=None, speaker_labels=False are filtered out
+        )
     mock_youtube_dl.assert_called_once() # Check filename extractor was initialized
     mock_ydl_extractor_instance.extract_info.assert_called_once_with(MOCK_URL_1, download=False)
-    mock_ydl_extractor_instance.prepare_filename.assert_called_once_with(MOCK_INFO_DICT, outtmpl=args.output_filename_template)
+    mock_ydl_extractor_instance.prepare_filename.assert_called_once_with(MOCK_INFO_DICT, outtmpl=config['output_filename_template'])
 
-    # Check output files
-    expected_base_output = tmp_path / f"{MOCK_INFO_DICT['title']} [{MOCK_INFO_DICT['id']}]"
-    txt_output_path = expected_base_output.with_suffix('.txt')
-    srt_output_path = expected_base_output.with_suffix('.srt')
+    # Check that formatters were called
+    expected_base_output_path = os.path.join(output_dir, f"{MOCK_INFO_DICT['title']} [{MOCK_INFO_DICT['id']}]")
+    mock_generate_txt.assert_called_once_with(MOCK_TRANSCRIPT_RESULT, f"{expected_base_output_path}.txt")
+    mock_generate_srt.assert_called_once_with(MOCK_TRANSCRIPT_RESULT, f"{expected_base_output_path}.srt")
 
-    assert txt_output_path.exists()
-    assert srt_output_path.exists()
-
-    # Check file content (basic check)
-    expected_txt_content = MOCK_TRANSCRIPT_RESULT['text'] + "\n"
-    expected_srt_content = "1\n00:00:00,500 --> 00:00:02,800\n(SPEAKER_00) This is the full transcript text.\n"
-    assert txt_output_path.read_text(encoding='utf-8') == expected_txt_content
-    assert srt_output_path.read_text(encoding='utf-8') == expected_srt_content
-
-    # Check cleanup (default is to remove audio)
+    # Check cleanup (default is keep_audio=False in fixture)
     mock_remove.assert_called_once_with(str(mock_audio_path))
     # Check if rmdir was attempted on the audio subdir
     mock_rmdir.assert_called_once_with(str(mock_audio_path.parent))

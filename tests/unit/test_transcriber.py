@@ -1,7 +1,7 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock, mock_open, ANY
-from src.transcriber import transcribe_audio_lemonfox
+from core.transcriber import transcribe_audio_lemonfox
 # Import specific exceptions from the openai library to test handling
 from openai import APIError, APIConnectionError, RateLimitError, AuthenticationError
 
@@ -14,8 +14,8 @@ MOCK_TRANSCRIPTION_RESULT = {"text": "This is a mock transcription."}
 # --- Test Cases ---
 
 # Use patch for the OpenAI client within the transcriber module
-@patch('src.transcriber.OpenAI')
-@patch('src.transcriber.os.path.exists', return_value=True) # Assume file exists for most tests
+@patch('core.transcriber.OpenAI')
+@patch('core.transcriber.os.path.exists', return_value=True) # Assume file exists for most tests
 def test_transcribe_success(mock_exists, mock_openai_client, tmp_path):
     """Tests successful transcription path."""
     # Configure the mock client and its methods
@@ -59,8 +59,8 @@ def test_transcribe_success(mock_exists, mock_openai_client, tmp_path):
     assert result == MOCK_TRANSCRIPTION_RESULT
 
 
-@patch('src.transcriber.OpenAI')
-@patch('src.transcriber.os.path.exists', return_value=True)
+@patch('core.transcriber.OpenAI')
+@patch('core.transcriber.os.path.exists', return_value=True)
 def test_transcribe_success_string_response(mock_exists, mock_openai_client, tmp_path):
     """Tests successful transcription when API returns a plain string."""
     mock_client_instance = MagicMock()
@@ -92,7 +92,7 @@ def test_transcribe_success_string_response(mock_exists, mock_openai_client, tmp
     assert result == {"text": mock_api_response_string}
 
 
-@patch('src.transcriber.os.path.exists', return_value=False)
+@patch('core.transcriber.os.path.exists', return_value=False)
 def test_transcribe_file_not_found(mock_exists):
     """Tests failure when the audio file does not exist."""
     result = transcribe_audio_lemonfox(
@@ -103,8 +103,8 @@ def test_transcribe_file_not_found(mock_exists):
     mock_exists.assert_called_once_with(TEST_AUDIO_PATH)
     assert result is None
 
-@patch('src.transcriber.OpenAI')
-@patch('src.transcriber.os.path.exists', return_value=True)
+@patch('core.transcriber.OpenAI')
+@patch('core.transcriber.os.path.exists', return_value=True)
 def test_transcribe_no_api_key(mock_exists, mock_openai_client):
     """Tests failure when API key is missing."""
     result = transcribe_audio_lemonfox(
@@ -115,8 +115,8 @@ def test_transcribe_no_api_key(mock_exists, mock_openai_client):
     mock_openai_client.assert_not_called() # Client initialization shouldn't happen
     assert result is None
 
-@patch('src.transcriber.OpenAI', side_effect=Exception("Client init failed"))
-@patch('src.transcriber.os.path.exists', return_value=True)
+@patch('core.transcriber.OpenAI', side_effect=Exception("Client init failed"))
+@patch('core.transcriber.os.path.exists', return_value=True)
 def test_transcribe_client_init_fails(mock_exists, mock_openai_client):
     """Tests failure during OpenAI client initialization."""
     result = transcribe_audio_lemonfox(
@@ -137,8 +137,8 @@ def test_transcribe_client_init_fails(mock_exists, mock_openai_client):
     APIError(message="Generic API error", request=MagicMock(), body=None),
     Exception("Unexpected error during API call") # Generic catch-all
 ])
-@patch('src.transcriber.OpenAI')
-@patch('src.transcriber.os.path.exists', return_value=True)
+@patch('core.transcriber.OpenAI')
+@patch('core.transcriber.os.path.exists', return_value=True)
 def test_transcribe_api_errors(mock_exists, mock_openai_client, error_type, tmp_path):
     """Tests handling of various API errors during transcription create call."""
     mock_client_instance = MagicMock()

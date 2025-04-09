@@ -2,7 +2,7 @@ import pytest
 import os
 import logging # Import logging for patching
 from unittest.mock import patch, MagicMock, ANY # ANY is useful for matching complex args like hooks
-from src.downloader import download_audio_python_api, YtdlpLogger # Import YtdlpLogger
+from core.downloader import download_audio_python_api, YtdlpLogger # Import YtdlpLogger
 import yt_dlp # Import the real module to check for its exceptions
 
 # Define constants for tests
@@ -16,7 +16,7 @@ MOCK_INFO_DICT = {'id': 'video_id', 'ext': 'webm'} # Sample info dict for fallba
 
 # --- Test Cases ---
 
-@patch('src.downloader.yt_dlp.YoutubeDL') # Patch the YoutubeDL class where it's used
+@patch('core.downloader.yt_dlp.YoutubeDL') # Patch the YoutubeDL class where it's used
 def test_download_success_hook_provides_filename(mock_youtube_dl, tmp_path):
     """Tests successful download where the progress hook provides the final filename."""
     output_dir = tmp_path / TEST_OUTPUT_DIR
@@ -69,7 +69,7 @@ def test_download_success_hook_provides_filename(mock_youtube_dl, tmp_path):
         assert result_path == str(expected_final_path)
 
 
-@patch('src.downloader.yt_dlp.YoutubeDL')
+@patch('core.downloader.yt_dlp.YoutubeDL')
 def test_download_success_fallback_filename(mock_youtube_dl, tmp_path):
     """Tests successful download using fallback filename logic when hook doesn't provide it."""
     output_dir = tmp_path / TEST_OUTPUT_DIR
@@ -102,7 +102,7 @@ def test_download_success_fallback_filename(mock_youtube_dl, tmp_path):
         assert result_path == str(expected_final_path)
 
 
-@patch('src.downloader.yt_dlp.YoutubeDL')
+@patch('core.downloader.yt_dlp.YoutubeDL')
 def test_download_failure_code(mock_youtube_dl, tmp_path):
     """Tests download failure when yt-dlp returns a non-zero exit code."""
     output_dir = tmp_path / TEST_OUTPUT_DIR
@@ -126,7 +126,7 @@ def test_download_failure_code(mock_youtube_dl, tmp_path):
 
 # --- Tests for YtdlpLogger ---
 
-@patch('src.downloader.logger') # Patch the logger instance used by YtdlpLogger
+@patch('core.downloader.logger') # Patch the logger instance used by YtdlpLogger
 def test_ytdlp_logger_info(mock_logger):
     """Tests YtdlpLogger.info method."""
     ytdlp_logger = YtdlpLogger()
@@ -134,7 +134,7 @@ def test_ytdlp_logger_info(mock_logger):
     ytdlp_logger.info(test_msg)
     mock_logger.info.assert_called_once_with(f"yt-dlp: {test_msg}")
 
-@patch('src.downloader.logger')
+@patch('core.downloader.logger')
 def test_ytdlp_logger_warning(mock_logger):
     """Tests YtdlpLogger.warning method."""
     ytdlp_logger = YtdlpLogger()
@@ -142,7 +142,7 @@ def test_ytdlp_logger_warning(mock_logger):
     ytdlp_logger.warning(test_msg)
     mock_logger.warning.assert_called_once_with(f"yt-dlp: {test_msg}")
 
-@patch('src.downloader.logger')
+@patch('core.downloader.logger')
 def test_ytdlp_logger_error(mock_logger):
     """Tests YtdlpLogger.error method."""
     ytdlp_logger = YtdlpLogger()
@@ -150,7 +150,7 @@ def test_ytdlp_logger_error(mock_logger):
     ytdlp_logger.error(test_msg)
     mock_logger.error.assert_called_once_with(f"yt-dlp: {test_msg}")
 
-@patch('src.downloader.logger')
+@patch('core.downloader.logger')
 def test_ytdlp_logger_debug_passes_info(mock_logger):
     """Tests YtdlpLogger.debug passes non-debug messages to info."""
     ytdlp_logger = YtdlpLogger()
@@ -159,7 +159,7 @@ def test_ytdlp_logger_debug_passes_info(mock_logger):
     mock_logger.info.assert_called_once_with(f"yt-dlp: {test_msg}")
     mock_logger.debug.assert_not_called()
 
-@patch('src.downloader.logger')
+@patch('core.downloader.logger')
 def test_ytdlp_logger_debug_ignores_debug(mock_logger):
     """Tests YtdlpLogger.debug ignores messages starting with '[debug]'."""
     ytdlp_logger = YtdlpLogger()
@@ -169,7 +169,7 @@ def test_ytdlp_logger_debug_ignores_debug(mock_logger):
     mock_logger.debug.assert_not_called()
 
 
-@patch('src.downloader.yt_dlp.YoutubeDL')
+@patch('core.downloader.yt_dlp.YoutubeDL')
 def test_download_exception(mock_youtube_dl, tmp_path):
     """Tests download failure when yt-dlp raises a DownloadError."""
     output_dir = tmp_path / TEST_OUTPUT_DIR
@@ -190,7 +190,7 @@ def test_download_exception(mock_youtube_dl, tmp_path):
     mock_ydl_instance.download.assert_called_once_with([TEST_URL])
     assert result_path is None
 
-@patch('src.downloader.yt_dlp.YoutubeDL')
+@patch('core.downloader.yt_dlp.YoutubeDL')
 def test_download_fallback_file_not_found(mock_youtube_dl, tmp_path):
     """Tests failure when fallback filename logic can't find the file."""
     output_dir = tmp_path / TEST_OUTPUT_DIR

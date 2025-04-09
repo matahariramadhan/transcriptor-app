@@ -53,31 +53,32 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
   - **Framework:** `pytest`
   - **Mocking:** `unittest.mock`
 - **Scope/Targets:**
-  - `formatter.py`: Test `_format_timestamp` with various inputs (zero, integers, floats, large values). Test `generate_txt` and `generate_srt` with mock transcription result dictionaries (covering cases with/without segments, with/without speaker labels, missing data, empty results). Mock file writing (`open`) to verify content without actual file I/O.
-  - `main.py`: Test argument parsing logic if it becomes significantly complex. Test any standalone helper functions.
-  - `downloader.py`/`transcriber.py`: Limited scope. Focus on any internal helper functions or specific logic _within_ the main functions, heavily mocking external library calls (e.g., mock `yt_dlp.YoutubeDL` methods like `download()` and `extract_info()`; mock `openai.Client().audio.transcriptions.create()`).
+  - `core/formatter.py`: Test `_format_timestamp`, `generate_txt`, `generate_srt`.
+  - `interfaces/cli/main.py`: Test argument parsing logic if complex, or any helper functions specific to the CLI.
+  - `core/downloader.py`/`core/transcriber.py`: Limited scope. Focus on internal helpers, heavily mocking external library calls (`yt_dlp`, `openai`).
+  - `core/pipeline.py`: Test any internal helper logic if refactored out.
 - **Best Practices:**
   - Unit tests should primarily target the logic _within_ a function/class, assuming its direct dependencies (which are mocked) behave correctly.
   - Utilize `pytest.mark.parametrize` where applicable to test functions with multiple input variations efficiently.
 
 ### 4.2 Integration Testing
 
-- **Goal:** Verify the interaction and data flow within the core `pipeline.run_pipeline` function, mocking external dependencies (`yt-dlp`, Lemonfox API, filesystem).
+- **Goal:** Verify the interaction and data flow within the `core.pipeline.run_pipeline` function, mocking external dependencies (`yt-dlp`, Lemonfox API, filesystem).
 - **Tools:**
   - **Framework:** `pytest` (using fixtures for setup/teardown, e.g., from `conftest.py`).
-  - **Mocking:** `unittest.mock` to mock function calls within the pipeline (e.g., `download_audio_python_api`, `transcribe_audio_lemonfox`, `generate_txt`, `generate_srt`) and external libraries (`yt_dlp.YoutubeDL`).
+  - **Mocking:** `unittest.mock` to mock function calls within the pipeline (e.g., `core.downloader.download_audio_python_api`, `core.transcriber.transcribe_audio_lemonfox`, `core.formatter.generate_txt`, `core.formatter.generate_srt`) and external libraries (`yt_dlp.YoutubeDL`).
   - **Filesystem Helpers:** `pytest` fixtures (e.g., `tmp_path`) for managing temporary directories and files.
   - **Test Data:** Defined in `tests/integration/conftest.py` or specific test files.
 - **Scope/Targets:**
-  - Test the `pipeline.run_pipeline` function directly.
-  - Mock `download_audio_python_api` to return a path to a dummy audio file created in `tmp_path`.
-  - Mock `transcribe_audio_lemonfox` to return a predefined mock result dictionary.
-  - Mock `generate_txt` and `generate_srt` to verify they are called correctly (or allow them to write to `tmp_path` and check content).
+  - Test the `core.pipeline.run_pipeline` function directly, passing a configuration dictionary.
+  - Mock `core.downloader.download_audio_python_api` to return a path to a dummy audio file created in `tmp_path`.
+  - Mock `core.transcriber.transcribe_audio_lemonfox` to return a predefined mock result dictionary.
+  - Mock `core.formatter.generate_txt` and `core.formatter.generate_srt` to verify they are called correctly.
   - Mock `yt_dlp.YoutubeDL` used for filename extraction within the pipeline.
   - Verify the pipeline function correctly handles data returned from mocked components.
-  - Verify the pipeline function correctly handles different arguments/flags (e.g., `--keep-audio`, `--speaker-labels`).
+  - Verify the pipeline function correctly handles different configuration options passed via the `config` dictionary (e.g., `keep_audio`, `speaker_labels`).
   - Verify the pipeline function returns the expected summary dictionary (`processed_count`, `failed_urls`).
-  - Verify expected output files are created (or attempted) in the temporary test directory (`tmp_path`).
+  - Verify expected formatter functions are called with correct arguments based on the mock transcription result and calculated output paths.
   - Test scenarios like single URL success, multiple URLs with failures, formatting failures, etc.
 
 ### 4.3 End-to-End (E2E) Testing
@@ -85,10 +86,10 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 - **Goal:** Test the complete application flow from the command line, including interaction with real external dependencies (network, `yt-dlp`, Lemonfox API).
 - **Tools:**
   - **Framework:** `pytest` (for structuring tests, fixtures like `tmp_path`, and test execution).
-  - **Execution:** Python's `subprocess` module (specifically `subprocess.run`) to execute the CLI script (`.venv/bin/python src/main.py ...`).
+  - **Execution:** Python's `subprocess` module (specifically `subprocess.run`) to execute the CLI script (`.venv/bin/python interfaces/cli/main.py ...`).
   - **Assertion/Verification:** Standard Python assertions, `pathlib.Path` checks for files/directories, file content comparison, exit code checking.
 - **Scope/Targets (Implemented in `tests/e2e/test_cli_flow.py`):**
-  - Run with single valid URLs (YouTube Short, TikTok) and default options. Verify exit code 0 and creation of default `txt`/`srt` files in a temporary directory.
+  - Run the `interfaces/cli/main.py` script with single valid URLs (YouTube Short, TikTok) and default options. Verify exit code 0 and creation of default `txt`/`srt` files in a temporary directory.
   - Run with multiple valid URLs. Verify successful processing of both, correct output file count, successful exit code, and expected summary log.
   - Run with specific options like `--formats srt` and `--keep-audio`. Verify correct output files are generated/kept.
   - Run with `--keep-audio` and verify the audio file persists.
@@ -139,12 +140,12 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
   ```
 - **Coverage Reporting:** Measure test coverage using `pytest-cov` (included in `requirements-dev.txt`). Run with:
   ```bash
-  # Coverage for all tests
-  pytest --cov=src tests/
+  # Coverage for all tests against the core logic
+  pytest --cov=core tests/
   # Coverage for unit tests only
-  pytest --cov=src tests/unit/
+  pytest --cov=core tests/unit/
   # Coverage for integration tests only
-  pytest --cov=src tests/integration/
+  pytest --cov=core tests/integration/
   ```
   The report helps identify untested parts of the codebase.
 - **CI Integration:** Integrate automated execution of unit and integration tests (and potentially E2E smoke tests), including coverage reporting, into a Continuous Integration (CI) pipeline (e.g., GitHub Actions) to ensure tests run automatically on code changes.

@@ -1,5 +1,5 @@
 import pytest
-from src.formatter import _format_timestamp, generate_txt, generate_srt # Added generate_txt, generate_srt
+from core.formatter import _format_timestamp, generate_txt, generate_srt # Added generate_txt, generate_srt
 
 # Test cases for _format_timestamp
 # Input seconds, expected output string
@@ -26,10 +26,14 @@ def test_format_timestamp_separator():
 
 # Add more tests for edge cases or invalid inputs if necessary
 # e.g., negative numbers, non-numeric types (though type hinting should help)
+# Use unittest.mock to patch 'open' and 'os.makedirs'
+from unittest.mock import patch, mock_open # Removed MagicMock as it wasn't used directly
+import os # Need os for os.path.dirname
+
 def test_format_timestamp_negative():
     """Tests that negative timestamps are formatted as 00:00:00,000 and log a warning."""
     # Patch the logger within the formatter module to check for warnings
-    with patch('src.formatter.logger') as mock_logger:
+    with patch('core.formatter.logger') as mock_logger:
         assert _format_timestamp(-10.5) == "00:00:00,000"
         mock_logger.warning.assert_called_once_with(
             "Received negative timestamp (-10.5s), formatting as 00:00:00,000."
@@ -64,10 +68,6 @@ expected_txt_segments = "First segment.\nSecond segment.\nThird segment.\n"
 expected_txt_segments_with_speaker = "Speaker A says this.\nSpeaker B says that.\n"
 expected_txt_empty = "\n" # Writes empty string + newline
 
-
-# Use unittest.mock to patch 'open' and 'os.makedirs'
-from unittest.mock import patch, mock_open # Removed MagicMock as it wasn't used directly
-import os # Need os for os.path.dirname
 
 # Helper to run generate_txt with mocks
 def run_generate_txt_test(mock_data, expected_content, tmp_path):

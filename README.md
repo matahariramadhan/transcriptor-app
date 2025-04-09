@@ -82,7 +82,7 @@ Run the application from your terminal within the activated virtual environment.
 **Basic Example (Single URL):**
 
 ```bash
-python src/main.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+python interfaces/cli/main.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 ```
 
 This will:
@@ -96,7 +96,7 @@ This will:
 **Example with Multiple URLs and Options:**
 
 ```bash
-python src/main.py "URL_1" "URL_2" "URL_3" \
+python interfaces/cli/main.py "URL_1" "URL_2" "URL_3" \
     --output-dir ./my_output \
     --model whisper-large-v3 \
     --formats srt \
@@ -126,8 +126,16 @@ This command:
 Run the following command to see all available command-line options:
 
 ```bash
-python src/main.py --help
+python interfaces/cli/main.py --help
 ```
+
+## Project Structure
+
+The project is organized into two main directories:
+
+- `core/`: Contains the core transcription engine logic (downloading, transcribing, formatting).
+- `interfaces/`: Contains different ways to interact with the core engine. Currently includes:
+  - `cli/`: The command-line interface.
 
 ## Testing
 
@@ -169,10 +177,10 @@ This project uses `pytest` for unit and integration testing.
     To measure code coverage using `pytest-cov` (included in development dependencies), run:
 
     ```bash
-    pytest --cov=src tests/
+    pytest --cov=core tests/
     ```
 
-    This will run all tests (unit and integration by default, or specify paths) in the `tests/` directory and report coverage for the `src/` directory.
+    This will run all tests (unit and integration by default, or specify paths) in the `tests/` directory and report coverage for the `core/` directory.
 
 See `testPlan.md` for a detailed overview of the testing strategy (unit, integration, E2E) and the structure of the tests (`tests/unit/`, `tests/integration/`, `tests/e2e/`).
 

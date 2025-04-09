@@ -8,7 +8,7 @@ from pathlib import Path
 # Define paths relative to the project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 VENV_PYTHON_PATH = PROJECT_ROOT / ".venv" / "bin" / "python" # Assumes Linux/macOS structure
-MAIN_SCRIPT_PATH = PROJECT_ROOT / "src" / "main.py"
+MAIN_SCRIPT_PATH = PROJECT_ROOT / "interfaces" / "cli" / "main.py" # Updated path
 
 # --- Test URLs (Replace with actual stable URLs) ---
 # Using a known short, public domain video if possible

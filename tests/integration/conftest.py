@@ -1,5 +1,4 @@
 import pytest
-import argparse
 
 # --- Shared Test Data ---
 
@@ -22,13 +21,13 @@ MOCK_INFO_DICT = {'id': 'video1_id', 'title': 'Video Title 1', 'ext': 'mp4'}
 
 # Make it a fixture so it's easily available to tests
 @pytest.fixture
-def create_mock_args_fixture():
-    """Fixture factory to create mock argparse.Namespace objects."""
-    def _create_mock_args(**kwargs):
-        """Creates a mock argparse.Namespace object with default values."""
+def create_mock_config_fixture():
+    """Fixture factory to create mock configuration dictionaries."""
+    def _create_mock_config(**kwargs):
+        """Creates a mock config dictionary with default values."""
         defaults = {
-            "urls": [MOCK_URL_1],
-            "output_dir": "output", # Will be replaced by tmp_path in tests
+            # Note: 'urls' are passed directly to run_pipeline, not part of config dict
+            # Note: 'output_dir' is passed directly to run_pipeline, not part of config dict
             "model": "whisper-1",
             "formats": ["txt", "srt"],
             "audio_format": "mp3",
@@ -38,8 +37,8 @@ def create_mock_args_fixture():
             "temperature": 0.0,
             "speaker_labels": False,
             "keep_audio": False,
-            "verbose": False,
+            # Note: 'verbose' is handled by logger setup, not needed in core config
         }
         defaults.update(kwargs)
-        return argparse.Namespace(**defaults)
-    return _create_mock_args
+        return defaults
+    return _create_mock_config
