@@ -17,11 +17,12 @@ This plan follows an iterative approach with a clear distinction between the ini
 
 ## 3. Phase 1: Local Desktop Application (Open Source MVP)
 
+- **Status:** Core implementation complete. Minor refinements (e.g., cancel/retry buttons, preview) and packaging remain.
 - **Goal:** Provide a user-friendly graphical interface for the existing transcription functionality that runs locally on the user's computer. Build an initial user base and gather feedback. Release under MIT license.
 - **Chosen Architecture:** **Local Web Server + Web UI**
-  - A **FastAPI** server runs locally (bound to `127.0.0.1`), serving an HTML/CSS/JavaScript interface.
+  - A **FastAPI** server (`interfaces/web/main.py`) runs locally (bound to `127.0.0.1`), serving an HTML template (`interfaces/web/templates/index.html`) with static CSS/JS (`interfaces/web/static/`).
   - The user interacts with the application via their web browser pointing to `localhost`.
-  - Background processing is handled using Python's `threading` module to keep the UI responsive.
+  - Background processing (`interfaces/web/processing.py`) is handled using Python's `threading` module to keep the UI responsive, calling the `core` logic.
 - **Key Characteristics:**
   - Runs entirely on the user's machine.
   - Requires local installation of Python, `ffmpeg`, and dependencies (`requirements.txt` + FastAPI, Uvicorn).
@@ -38,11 +39,11 @@ This plan follows an iterative approach with a clear distinction between the ini
       - `/submit_job` (POST): Accept URL/options, start processing in a background thread, return `job_id`.
       - `/status/<job_id>` (GET): Return job status (e.g., Pending, Processing, Completed, Failed).
       - `/result/<job_id>` (GET): Return results (text content or file paths) or error details.
-  4.  Implement simple in-memory storage (e.g., Python dictionary) for tracking job status and results.
-  5.  Adapt `src/pipeline.py` logic to run within a background thread, updating the shared status/result storage.
-  6.  Implement frontend JavaScript to call API endpoints, poll for status, and display results/errors.
-  7.  Add FastAPI and Uvicorn to `requirements.txt`.
-  8.  Package the application using **PyInstaller** (or similar) to create a distributable executable (documenting any separate `ffmpeg` installation needed).
+  4.  Implement simple in-memory storage (`jobs` dictionary in `interfaces/web/main.py`) for tracking job status and results.
+  5.  Adapt `core/pipeline.py` logic (via `interfaces/web/processing.py`) to run within a background thread, updating the shared status/result storage using callbacks.
+  6.  Implement frontend JavaScript (`interfaces/web/static/*.js`) to call API endpoints, poll for status, and display results/errors dynamically.
+  7.  Add FastAPI, Uvicorn, Jinja2 etc. to `requirements.txt`.
+  8.  (Remaining) Package the application using **PyInstaller** (or similar) to create a distributable executable (documenting any separate `ffmpeg` installation needed).
   9.  Create clear installation and usage instructions for the packaged application.
   10. Publish code to a public repository (e.g., GitHub) with the MIT license.
 - **Outcome:** A distributable, open-source desktop application (run via executable, accessed via localhost in browser) allowing users to transcribe videos locally using their own API key, with a non-blocking UI.

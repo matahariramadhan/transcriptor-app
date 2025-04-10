@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable # Added Callable
 import yt_dlp
 
 # Assuming these are imported correctly relative to the src directory
@@ -29,10 +29,11 @@ def run_pipeline(
     api_key: str,
     config: Dict[str, Any],
     audio_output_dir: str,
-    output_dir: str # Pass main output dir explicitly
+    output_dir: str, # Pass main output dir explicitly
+    status_update_callback: Optional[Callable[[str], None]] = None # Add callback parameter
 ) -> Dict[str, Any]:
     """
-    Runs the core transcription pipeline for a list of URLs using a configuration dictionary.
+    Runs the core transcription pipeline for a list of URLs, updating status via callback.
 
     Args:
         urls_to_process: List of URLs to process.
@@ -79,6 +80,7 @@ def run_pipeline(
 
         try:
             # --- Download Audio ---
+            if status_update_callback: status_update_callback("downloading") # Update status
             # Use a simple ID-based template for the intermediate audio file
             audio_filename_template = "%(id)s"
             logger.info("Step 1: Downloading and extracting audio...")
@@ -96,6 +98,7 @@ def run_pipeline(
             logger.info(f"Audio successfully saved to: {audio_path}")
 
             # --- Transcribe Audio ---
+            if status_update_callback: status_update_callback("transcribing") # Update status
             logger.info("Step 2: Transcribing audio...")
             # Prepare transcription arguments from config
             transcribe_args = {
@@ -123,6 +126,7 @@ def run_pipeline(
             logger.info("Transcription completed.")
 
             # --- Format and Save Transcripts ---
+            if status_update_callback: status_update_callback("formatting") # Update status
             logger.info("Step 3: Formatting and saving transcripts...")
             # Determine the base filename using the user's template for the current URL
             base_filename = "transcript" # Fallback filename

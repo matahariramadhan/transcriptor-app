@@ -2,7 +2,7 @@
 
 A command-line application to download video/audio from various platforms (YouTube, TikTok, Instagram, etc.) and generate transcripts using the Lemonfox API (an OpenAI Whisper-compatible endpoint).
 
-Based on the technical design outlined in `technical_design.md`.
+Based on the technical design outlined in `docs/technical_design.md`.
 
 ## Features
 
@@ -77,7 +77,9 @@ Based on the technical design outlined in `technical_design.md`.
 
 ## Usage
 
-Run the application from your terminal within the activated virtual environment.
+This application provides two interfaces: a Command-Line Interface (CLI) and a local Web User Interface (Web UI). Run either from your terminal within the activated virtual environment.
+
+### Command-Line Interface (CLI)
 
 **Basic Example (Single URL):**
 
@@ -129,13 +131,44 @@ Run the following command to see all available command-line options:
 python interfaces/cli/main.py --help
 ```
 
+### Web User Interface (Web UI)
+
+This provides a graphical interface accessible via your web browser.
+
+1.  **Start the Server:**
+    Run the following command from the project root directory:
+
+    ```bash
+    uvicorn interfaces.web.main:app --reload --host 127.0.0.1 --port 8000
+    ```
+
+    _(The `--reload` flag automatically restarts the server when code changes are detected, useful for development.)_
+
+2.  **Access the UI:**
+    Open your web browser and navigate to: `http://127.0.0.1:8000`
+
+3.  **Using the UI:**
+    - Enter one or more video/audio URLs in the input fields. Use the "+ Add another URL" button for multiple URLs.
+    - Configure transcription settings like the Whisper model and desired output formats (TXT, SRT).
+    - Use "Advanced Options" to set language hints, request speaker labels, or choose to keep intermediate audio files.
+    - Click "Start Transcription".
+    - Monitor job progress in the "Active Jobs" list.
+    - Once completed, download links for the transcript files will appear on the job card. Output files are saved locally in the `web_outputs/<job_id>/` directory within the project folder.
+
 ## Project Structure
 
-The project is organized into two main directories:
+The project is organized into the following main directories:
 
 - `core/`: Contains the core transcription engine logic (downloading, transcribing, formatting).
-- `interfaces/`: Contains different ways to interact with the core engine. Currently includes:
-  - `cli/`: The command-line interface.
+- `interfaces/`: Contains different ways to interact with the `core` engine:
+  - `cli/`: The command-line interface (`main.py`).
+  - `web/`: The local web user interface.
+    - `main.py`: FastAPI backend server.
+    - `processing.py`: Background job processing logic.
+    - `static/`: Contains CSS and JavaScript files (`main.js`, `apiClient.js`, etc.).
+    - `templates/`: Contains the HTML template (`index.html`).
+- `tests/`: Contains unit, integration, and end-to-end tests.
+- `web_outputs/`: Default directory where output files from the web UI are saved (created automatically).
 
 ## Testing
 
@@ -182,7 +215,7 @@ This project uses `pytest` for unit and integration testing.
 
     This will run all tests (unit and integration by default, or specify paths) in the `tests/` directory and report coverage for the `core/` directory.
 
-See `testPlan.md` for a detailed overview of the testing strategy (unit, integration, E2E) and the structure of the tests (`tests/unit/`, `tests/integration/`, `tests/e2e/`).
+See `docs/testPlan.md` for a detailed overview of the testing strategy (unit, integration, E2E) and the structure of the tests (`tests/unit/`, `tests/integration/`, `tests/e2e/`).
 
 ## Contributing
 

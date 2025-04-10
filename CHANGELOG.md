@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.2.1] - 2025-04-10
+
+### Added
+
+- Local Web User Interface (Phase 1 MVP) using FastAPI and modular vanilla JavaScript (`interfaces/web/`).
+- API endpoints (`/submit_job`, `/status/{job_id}`, `/result/{job_id}`, `/download/{job_id}/{filename}`) for Web UI.
+- Background job processing via `threading` (`interfaces/web/processing.py`).
+- Dynamic job list in Web UI with status polling and stage-based progress updates.
+
+### Changed
+
+- Refactored `core/pipeline.py` to accept a status update callback.
+- Updated `interfaces/web/processing.py` to provide granular status updates via callback.
+- Reduced Web UI polling interval to 1 second (`interfaces/web/static/jobManager.js`).
+- Updated "Add another URL" button color in Web UI (`interfaces/web/templates/index.html`).
+- Reorganized documentation files (`developmentPlan.md`, `technical_design.md`, `userFlow.md`, `testPlan.md`, `yt-dlp_readme.md`) into a new `docs/` directory.
+- Updated links in `README.md` and `docs/technical_design.md` to reflect documentation move.
+
+### Fixed
+
+- Corrected `SyntaxError` in `interfaces/web/processing.py` (duplicated arguments).
+- Resolved issue where Web UI status/progress bar wasn't updating through all stages by implementing status callbacks.
+
 ## [1.2.0] - 2025-04-09
 
 ### Changed

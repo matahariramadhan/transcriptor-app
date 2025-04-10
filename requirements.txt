@@ -1,3 +1,7 @@
 yt-dlp==2025.03.31
 openai==1.70.0
 python-dotenv
+fastapi
+uvicorn[standard]
+python-multipart
+jinja2
