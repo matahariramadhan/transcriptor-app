@@ -1,5 +1,7 @@
-yt-dlp==2025.03.31
-openai==1.70.0
+# Core library (install locally for development)
+-e ../transcriptor-core
+
+# Interface dependencies
 python-dotenv
 fastapi
 uvicorn[standard]

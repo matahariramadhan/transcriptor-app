@@ -90,8 +90,8 @@ This plan follows an iterative approach with a clear distinction between the ini
 
 ## 6. Key Considerations (Across Phases)
 
-- **Code Reusability:** Maximize reuse of the core Python transcription logic (`pipeline.py`, `downloader.py`, etc.) between Phase 1 (local app) and Phase 2 (backend workers).
-- **Licensing:** Maintain a clear separation between the MIT-licensed Phase 1 codebase and the proprietary/commercial codebase for Phase 2 and 3.
+- **Code Reusability:** Maximize reuse of the core Python transcription logic. (Note: As of v1.3.0, the core logic has been refactored into a separate `transcriptor-core` library to facilitate reuse between the Phase 1 local app and future Phase 2 backend workers).
+- **Licensing:** Maintain a clear separation between the MIT-licensed Phase 1 codebase (and potentially the `transcriptor-core` library, depending on chosen license) and the proprietary/commercial codebase for Phase 2 and 3.
 - **Infrastructure Costs:** Carefully plan and monitor cloud infrastructure costs, especially for Phase 2 and 3.
 - **API Design:** Design the Phase 2 API thoughtfully, as it will serve both the web frontend and future mobile clients. Consider versioning early.
 - **Security:** Implement robust security measures at all stages, particularly for the commercial phases involving user data and payments.

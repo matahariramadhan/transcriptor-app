@@ -23,7 +23,8 @@ Based on the technical design outlined in `docs/technical_design.md`.
 
 ## Installation
 
-1.  **Clone the repository (or download the source code):**
+1.  **Clone the repository (or download the source code) for both `transcriptor-app` and `transcriptor-core`:**
+    Make sure both project directories (`transcriptor-app` and `transcriptor-core`) are placed alongside each other (e.g., in the same parent directory).
 
     ```bash
     # If you have git installed
@@ -49,12 +50,21 @@ Based on the technical design outlined in `docs/technical_design.md`.
 3.  **Install dependencies:**
 
     - **For running the application:**
+
+    ```bash
+    # Installs app dependencies and the local transcriptor-core in editable mode
+    pip install -r requirements.txt
+    ```
+
+    - **For development (running tests):**
+      You also need to install development dependencies for _both_ projects:
       ```bash
-      pip install -r requirements.txt
-      ```
-    - **For development (including tests):**
-      ```bash
-      pip install -r requirements.txt -r requirements-dev.txt
+      # In transcriptor-app directory:
+      pip install -r requirements-dev.txt
+      # In transcriptor-core directory:
+      cd ../transcriptor-core
+      pip install -r requirements-dev.txt
+      cd ../transcriptor-app
       ```
 
 ## Configuration
@@ -159,63 +169,36 @@ This provides a graphical interface accessible via your web browser.
 
 The project is organized into the following main directories:
 
-- `core/`: Contains the core transcription engine logic (downloading, transcribing, formatting).
-- `interfaces/`: Contains different ways to interact with the `core` engine:
+- `interfaces/`: Contains different ways to interact with the core engine:
   - `cli/`: The command-line interface (`main.py`).
-  - `web/`: The local web user interface.
-    - `main.py`: FastAPI backend server.
-    - `processing.py`: Background job processing logic.
-    - `static/`: Contains CSS and JavaScript files (`main.js`, `apiClient.js`, etc.).
-    - `templates/`: Contains the HTML template (`index.html`).
-- `tests/`: Contains unit, integration, and end-to-end tests.
+  - `web/`: The local web user interface (FastAPI backend, JS frontend).
+- `tests/`: Contains end-to-end tests (`e2e/`) for the application. Unit and integration tests reside within the `transcriptor-core` library project.
 - `web_outputs/`: Default directory where output files from the web UI are saved (created automatically).
+- `transcriptor-core/` (Separate Project): Contains the core transcription engine logic (downloading, transcribing, formatting) as an installable library. Includes its own unit and integration tests.
 
 ## Testing
 
-This project uses `pytest` for unit and integration testing.
+This project uses `pytest`.
 
 1.  **Install Development Dependencies:**
-    Make sure you have activated your virtual environment (`source .venv/bin/activate`). Then install the necessary packages:
-
-    ```bash
-    pip install -r requirements.txt -r requirements-dev.txt
-    ```
+    Make sure you have activated your virtual environment and installed development dependencies for _both_ `transcriptor-app` and `transcriptor-core` as described in the Installation section.
 
 2.  **Run Tests:**
-    Execute the following command from the project root directory to run all tests (unit and integration):
 
-    ```bash
-    pytest
-    ```
+    - **Core Unit & Integration Tests:** Navigate to the `transcriptor-core` directory and run its tests:
+      ```bash
+      cd ../transcriptor-core
+      python -m pytest
+      cd ../transcriptor-app
+      ```
+    - **Application End-to-End (E2E) Tests:** Run from the `transcriptor-app` root directory:
 
-    Or for more detailed output:
+      ```bash
+      # Requires network and API key in .env
+      python -m pytest tests/e2e/
+      ```
 
-    ```bash
-    pytest -v
-    ```
-
-    **Running Specific Test Types:**
-
-    ```bash
-    # Run only unit tests
-    pytest tests/unit/
-    # Run only integration tests
-    pytest tests/integration/
-    # Run only end-to-end tests (requires network and API key in .env)
-    pytest tests/e2e/
-    ```
-
-    **Running Tests with Coverage:**
-
-    To measure code coverage using `pytest-cov` (included in development dependencies), run:
-
-    ```bash
-    pytest --cov=core tests/
-    ```
-
-    This will run all tests (unit and integration by default, or specify paths) in the `tests/` directory and report coverage for the `core/` directory.
-
-See `docs/testPlan.md` for a detailed overview of the testing strategy (unit, integration, E2E) and the structure of the tests (`tests/unit/`, `tests/integration/`, `tests/e2e/`).
+See `docs/testPlan.md` for a detailed overview of the testing strategy. Unit and integration tests for the core logic reside within the `transcriptor-core` project. E2E tests for the application reside here in `transcriptor-app/tests/e2e/`.
 
 ## Contributing
 

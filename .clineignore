@@ -13,3 +13,4 @@ htmlcov/
 .pytest_cache/
 downloads/
 transcripts/
+yt-dlp_readme.md

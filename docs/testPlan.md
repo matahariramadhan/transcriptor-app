@@ -48,32 +48,32 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 
 ### 4.1 Unit Testing
 
-- **Goal:** Verify the correctness of individual functions and classes in isolation, without external dependencies (network, filesystem, APIs).
+- **Goal:** Verify the correctness of individual functions and classes within the `transcriptor-core` library in isolation, without external dependencies (network, filesystem, APIs).
+- **Location:** Resides within the `transcriptor-core` project (`transcriptor-core/tests/unit/`).
 - **Tools:**
   - **Framework:** `pytest`
   - **Mocking:** `unittest.mock`
 - **Scope/Targets:**
-  - `core/formatter.py`: Test `_format_timestamp`, `generate_txt`, `generate_srt`.
-  - `interfaces/cli/main.py`: Test argument parsing logic if complex, or any helper functions specific to the CLI.
-  - `core/downloader.py`/`core/transcriber.py`: Limited scope. Focus on internal helpers, heavily mocking external library calls (`yt_dlp`, `openai`).
-  - `core/pipeline.py`: Test any internal helper logic if refactored out.
+  - `transcriptor_core/formatter.py`: Test `_format_timestamp`, `generate_txt`, `generate_srt`.
+  - `transcriptor_core/downloader.py`/`transcriptor_core/transcriber.py`: Test internal helpers, heavily mocking external library calls (`yt_dlp`, `openai`).
 - **Best Practices:**
   - Unit tests should primarily target the logic _within_ a function/class, assuming its direct dependencies (which are mocked) behave correctly.
   - Utilize `pytest.mark.parametrize` where applicable to test functions with multiple input variations efficiently.
 
 ### 4.2 Integration Testing
 
-- **Goal:** Verify the interaction and data flow within the `core.pipeline.run_pipeline` function, mocking external dependencies (`yt-dlp`, Lemonfox API, filesystem).
+- **Goal:** Verify the interaction and data flow within the `transcriptor_core.pipeline.run_pipeline` function, mocking external dependencies (`yt-dlp`, Lemonfox API, filesystem). Ensures the core library components work together as expected.
+- **Location:** Resides within the `transcriptor-core` project (`transcriptor-core/tests/integration/`).
 - **Tools:**
   - **Framework:** `pytest` (using fixtures for setup/teardown, e.g., from `conftest.py`).
-  - **Mocking:** `unittest.mock` to mock function calls within the pipeline (e.g., `core.downloader.download_audio_python_api`, `core.transcriber.transcribe_audio_lemonfox`, `core.formatter.generate_txt`, `core.formatter.generate_srt`) and external libraries (`yt_dlp.YoutubeDL`).
+  - **Mocking:** `unittest.mock` to mock function calls within the pipeline (e.g., `transcriptor_core.downloader.download_audio_python_api`, `transcriptor_core.transcriber.transcribe_audio_lemonfox`, `transcriptor_core.formatter.generate_txt`, `transcriptor_core.formatter.generate_srt`) and external libraries (`yt_dlp.YoutubeDL`).
   - **Filesystem Helpers:** `pytest` fixtures (e.g., `tmp_path`) for managing temporary directories and files.
-  - **Test Data:** Defined in `tests/integration/conftest.py` or specific test files.
+  - **Test Data:** Defined in `transcriptor-core/tests/integration/conftest.py` or specific test files.
 - **Scope/Targets:**
-  - Test the `core.pipeline.run_pipeline` function directly, passing a configuration dictionary.
-  - Mock `core.downloader.download_audio_python_api` to return a path to a dummy audio file created in `tmp_path`.
-  - Mock `core.transcriber.transcribe_audio_lemonfox` to return a predefined mock result dictionary.
-  - Mock `core.formatter.generate_txt` and `core.formatter.generate_srt` to verify they are called correctly.
+  - Test the `transcriptor_core.pipeline.run_pipeline` function directly, passing a configuration dictionary.
+  - Mock `transcriptor_core.downloader.download_audio_python_api` to return a path to a dummy audio file created in `tmp_path`.
+  - Mock `transcriptor_core.transcriber.transcribe_audio_lemonfox` to return a predefined mock result dictionary.
+  - Mock `transcriptor_core.formatter.generate_txt` and `transcriptor_core.formatter.generate_srt` to verify they are called correctly.
   - Mock `yt_dlp.YoutubeDL` used for filename extraction within the pipeline.
   - Verify the pipeline function correctly handles data returned from mocked components.
   - Verify the pipeline function correctly handles different configuration options passed via the `config` dictionary (e.g., `keep_audio`, `speaker_labels`).
@@ -83,7 +83,8 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 
 ### 4.3 End-to-End (E2E) Testing
 
-- **Goal:** Test the complete application flow from the command line, including interaction with real external dependencies (network, `yt-dlp`, Lemonfox API).
+- **Goal:** Test the complete application flow from the command line, including interaction with real external dependencies (network, `yt-dlp`, Lemonfox API), using the installed `transcriptor-core` library.
+- **Location:** Resides within the `transcriptor-app` project (`transcriptor-app/tests/e2e/`).
 - **Tools:**
   - **Framework:** `pytest` (for structuring tests, fixtures like `tmp_path`, and test execution).
   - **Execution:** Python's `subprocess` module (specifically `subprocess.run`) to execute the CLI script (`.venv/bin/python interfaces/cli/main.py ...`).
@@ -122,30 +123,26 @@ This document outlines the testing strategy for `TranscriptorApp`, a command-lin
 
 ## 6. Test Organization & Execution
 
-- **Directory Structure:** Organize test files logically:
-  - Unit tests: `tests/unit/`
-  - Integration tests: `tests/integration/` (using `conftest.py` for shared fixtures/data)
-  - E2E tests: `tests/e2e/`
-  - Test data (if needed beyond mocks): `tests/data/`
-- **Test Runner:** Execute tests using the `pytest` command from the project root. `pytest` will automatically discover tests in subdirectories.
+- **Directory Structure:**
+  - `transcriptor-app/tests/e2e/`: End-to-end tests for the application.
+  - `transcriptor-core/tests/unit/`: Unit tests for the core library.
+  - `transcriptor-core/tests/integration/`: Integration tests for the core library.
+- **Test Runner:** Execute tests using `python -m pytest` from the respective project roots (`transcriptor-app` or `transcriptor-core`).
+
   ```bash
-  # Run all tests (unit, integration, e2e)
-  pytest
-  # Run only unit tests
-  pytest tests/unit/
-  # Run only integration tests
-  pytest tests/integration/
-  # Run only E2E tests
-  pytest tests/e2e/
+  # Run core unit & integration tests (from transcriptor-core dir)
+  cd ../transcriptor-core
+  python -m pytest
+  cd ../transcriptor-app
+
+  # Run application E2E tests (from transcriptor-app dir)
+  python -m pytest tests/e2e/
   ```
-- **Coverage Reporting:** Measure test coverage using `pytest-cov` (included in `requirements-dev.txt`). Run with:
+
+- **Coverage Reporting:** Measure test coverage for the core library using `pytest-cov` (requires installing `transcriptor-core/requirements-dev.txt`). Run from the `transcriptor-core` directory:
   ```bash
-  # Coverage for all tests against the core logic
-  pytest --cov=core tests/
-  # Coverage for unit tests only
-  pytest --cov=core tests/unit/
-  # Coverage for integration tests only
-  pytest --cov=core tests/integration/
+  # Coverage for the core library logic
+  python -m pytest --cov=transcriptor_core tests/
   ```
-  The report helps identify untested parts of the codebase.
-- **CI Integration:** Integrate automated execution of unit and integration tests (and potentially E2E smoke tests), including coverage reporting, into a Continuous Integration (CI) pipeline (e.g., GitHub Actions) to ensure tests run automatically on code changes.
+  The report helps identify untested parts of the core library codebase.
+- **CI Integration:** Integrate automated execution of tests (core unit/integration and app E2E smoke tests), including coverage reporting, into a Continuous Integration (CI) pipeline (e.g., GitHub Actions) to ensure tests run automatically on code changes.

@@ -11,7 +11,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
-from core.pipeline import run_pipeline
+# Import from the installed transcriptor_core package
+from transcriptor_core.pipeline import run_pipeline
 from dotenv import load_dotenv
 
 # Configure logging for the processing module

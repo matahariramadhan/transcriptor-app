@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-04-10
+
+### Refactored
+
+- Extracted core transcription logic (`downloader`, `formatter`, `pipeline`, `transcriber`) into a separate installable library (`transcriptor-core`).
+- Created project structure and packaging files (`pyproject.toml`, `requirements.txt`, `README.md`) for `transcriptor-core`.
+- Removed the internal `core/` directory from the main `transcriptor-app`.
+- Updated `transcriptor-app`'s `requirements.txt` to depend on `transcriptor-core` (using local editable install for development).
+- Updated import paths across `transcriptor-app` (interfaces, tests) to use `transcriptor_core`.
+- Moved unit tests (`tests/unit/`) and integration tests (`tests/integration/`) from `transcriptor-app` to `transcriptor-core`.
+- Added development dependencies (`pytest`, `pytest-cov`) to `transcriptor-core`.
+- Removed original unit and integration test directories from `transcriptor-app`.
+- Fixed relative import errors in moved integration tests within `transcriptor-core`.
+
 ## [1.2.1] - 2025-04-10
 
 ### Added

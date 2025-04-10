@@ -63,29 +63,25 @@ The application follows a pipeline architecture initiated from either a command-
 - **Orchestration Layer:** Coordinates the workflow.
   - For CLI: `core/pipeline.py` called directly.
   - For Web UI: `interfaces/web/processing.py` initiates `core/pipeline.py` in a background thread and manages job state.
-- **Core Modules (`core/`):**
+- **Core Library (`transcriptor-core`):** An external, installable Python package containing the core logic.
   - **Downloader Module:** Interacts with `yt-dlp` to fetch and extract audio.
   - **Transcriber Module:** Interacts with the Lemonfox API via the configured `openai` library client.
   - **Formatter Module:** Processes transcription output into desired file formats.
+  - **Pipeline Module:** Orchestrates the download -> transcribe -> format process.
 - **Filesystem:** Reads/writes audio and transcript files.
 
 ### 3.2 Modularity
 
-The application is structured into distinct packages:
+The application relies on the external `transcriptor-core` library for its main functionality. The `transcriptor-app` project itself contains:
 
-- **`core/`**: Contains the core transcription engine logic, independent of any specific interface.
-  - `pipeline.py`: Orchestrates the download -> transcribe -> format process for a list of URLs based on a configuration dictionary.
-  - `downloader.py`: Handles audio downloading and extraction using `yt-dlp`.
-  - `transcriber.py`: Interacts with the Lemonfox API via the `openai` library.
-  - `formatter.py`: Formats the transcription results into TXT, SRT, etc.
-- **`interfaces/`**: Contains different ways to interact with the `core` engine.
+- **`interfaces/`**: Contains different ways to interact with the core engine.
   - `cli/`: The command-line interface (`main.py`).
   - `web/`: The local web user interface.
     - `main.py`: FastAPI backend server defining API endpoints (`/`, `/submit_job`, `/status`, `/result`, `/download`).
-    - `processing.py`: Handles background job execution using `threading` and updates a shared job status dictionary. Calls `core.pipeline.run_pipeline`.
+    - `processing.py`: Handles background job execution using `threading` and updates a shared job status dictionary. Calls `transcriptor_core.pipeline.run_pipeline`.
     - `static/`: Contains CSS (`style.css`) and modular JavaScript files (`main.js`, `apiClient.js`, `jobManager.js`, `uiInteractions.js`) for frontend logic.
     - `templates/`: Contains the main HTML template (`index.html`) using Jinja2.
-- `utils.py` (Optional): Could be placed at the root or within `core` for shared helper functions.
+- **`tests/e2e/`**: Contains end-to-end tests for the application interfaces.
 
 ### 3.3 Data Flow
 
@@ -93,9 +89,9 @@ The application is structured into distinct packages:
 
 1.  User executes `python interfaces/cli/main.py <URL1> <URL2> ... [options]`.
 2.  `interfaces/cli/main.py` parses arguments (`argparse`), loads API key (`dotenv`), creates `config` dict.
-3.  `interfaces/cli/main.py` calls `core.pipeline.run_pipeline(urls, api_key, config, ...)`.
-4.  `core/pipeline.py` iterates through URLs, calling `downloader`, `transcriber`, `formatter`.
-5.  `core/pipeline.py` returns results summary.
+3.  `interfaces/cli/main.py` calls `transcriptor_core.pipeline.run_pipeline(urls, api_key, config, ...)`.
+4.  The `transcriptor_core` library executes the pipeline (downloader, transcriber, formatter).
+5.  `run_pipeline` returns results summary.
 6.  `interfaces/cli/main.py` prints summary and exits.
 
 **Web UI Flow:**
@@ -117,8 +113,8 @@ The application is structured into distinct packages:
     a. Defines an `update_status` callback function.
     b. Loads API key (`dotenv`).
     c. Creates output directories.
-    d. Calls `core.pipeline.run_pipeline`, passing the `update_status` callback.
-    e. `core/pipeline.py` executes, calling `downloader`, `transcriber`, `formatter`, and invoking `update_status('downloading')`, `update_status('transcribing')`, `update_status('formatting')` at appropriate times.
+    d. Calls `transcriptor_core.pipeline.run_pipeline`, passing the `update_status` callback.
+    e. The `transcriptor_core` library executes the pipeline, invoking `update_status('downloading')`, `update_status('transcribing')`, `update_status('formatting')` at appropriate times.
     f. `update_status` modifies the shared `jobs` dict.
     g. After `run_pipeline` finishes, `run_transcription_job_in_background` updates the final status (`completed` or `failed`), error message, and file list in the `jobs` dict based on `pipeline_results`.
 10. Frontend JS (`jobManager.js`):
@@ -140,12 +136,11 @@ The application is structured into distinct packages:
 
 ### 3.4 Error Handling Strategy
 
-- Each module function (`download_audio_python_api`, `transcribe_audio_lemonfox`, etc.) will use `try...except` blocks to catch relevant exceptions (e.g., `yt_dlp.utils.DownloadError`, `openai.APIError`, `FileNotFoundError`, general `Exception`).
-- Errors will be logged using Python's `logging` module.
-- Functions within `core` will return `None` or specific error indicators upon failure.
-- The `core.pipeline.run_pipeline` function handles errors from `downloader`, `transcriber`, and `formatter` for each URL, logs them, and adds the URL to a failed list, returning a summary.
-- `interfaces/cli/main.py` uses this summary to set the exit code.
-- `interfaces/web/processing.py` catches exceptions during `run_pipeline` execution and updates the job status/error in the shared dictionary.
+- Functions within the `transcriptor_core` library use `try...except` blocks to catch relevant exceptions (e.g., `yt_dlp.utils.DownloadError`, `openai.APIError`, `FileNotFoundError`, general `Exception`) and return `None` or specific error indicators upon failure.
+- Errors are logged using Python's `logging` module within the core library.
+- The `transcriptor_core.pipeline.run_pipeline` function handles errors from its internal components for each URL, logs them, and adds the URL to a failed list, returning a summary.
+- `interfaces/cli/main.py` uses the summary returned by `run_pipeline` to set the exit code.
+- `interfaces/web/processing.py` catches exceptions during the call to `run_pipeline` and updates the job status/error in the shared dictionary.
 - `interfaces/web/main.py` includes basic validation and returns appropriate HTTP exceptions (e.g., 404 for unknown job ID, 400 for bad requests).
 - Frontend JavaScript (`apiClient.js`, `main.js`) includes `try...catch` blocks for API calls and displays error messages to the user (e.g., via `alert`).
 
@@ -153,7 +148,7 @@ The application is structured into distinct packages:
 
 ### 4.1 `interfaces/cli/main.py` (CLI Entry Point & Setup/Teardown)
 
-- **Responsibilities:** Parse CLI args (`argparse`). Load API key (`dotenv`). Configure logging. Create output directories. Prepare the `config` dictionary for the core pipeline. Call `core.pipeline.run_pipeline`. Print final summary based on pipeline results. Set exit code.
+- **Responsibilities:** Parse CLI args (`argparse`). Load API key (`dotenv`). Configure logging. Create output directories. Prepare the `config` dictionary for the core pipeline. Call `transcriptor_core.pipeline.run_pipeline`. Print final summary based on pipeline results. Set exit code.
 - **Interface:** Command-line execution.
 
 ### 4.2 `interfaces/web/main.py` (Web Backend API)
@@ -163,7 +158,7 @@ The application is structured into distinct packages:
 
 ### 4.3 `interfaces/web/processing.py` (Web Background Processing)
 
-- **Responsibilities:** Define `start_job` to initialize job state and launch background thread. Define `run_transcription_job_in_background` (target for thread) which sets up environment (API key, directories), defines status callback, calls `core.pipeline.run_pipeline` with the callback, and updates the final job state in the shared `jobs` dictionary based on pipeline results or exceptions.
+- **Responsibilities:** Define `start_job` to initialize job state and launch background thread. Define `run_transcription_job_in_background` (target for thread) which sets up environment (API key, directories), defines status callback, calls `transcriptor_core.pipeline.run_pipeline` with the callback, and updates the final job state in the shared `jobs` dictionary based on pipeline results or exceptions.
 - **Interface:** `start_job(...)`, `run_transcription_job_in_background(...)`.
 
 ### 4.4 `interfaces/web/static/*.js` (Web Frontend Logic)
@@ -177,35 +172,24 @@ The application is structured into distinct packages:
 
 ### 4.5 `core/pipeline.py` (Core Pipeline Logic)
 
-- **Responsibilities:** Implement `run_pipeline`. Accepts URLs, config, API key, directories, and an optional `status_update_callback`. Iterates through URLs, calling downloader, transcriber, formatter. Invokes the callback at different stages (`downloading`, `transcribing`, `formatting`, `completed`, `failed`). Handles errors gracefully per URL. Returns summary results.
-- **Interface:** `run_pipeline(..., status_update_callback: Optional[Callable[[str], None]] = None) -> Dict[str, Any]`
+### 4.5 `transcriptor-core` Library (External Package)
 
-### 4.3 `core/downloader.py` (Downloader Module)
-
-- **Responsibilities:** Implement `download_audio_python_api` using `yt_dlp.YoutubeDL`. Configure `ydl_opts` based on input parameters (output path/template, audio format). Use `FFmpegExtractAudio` postprocessor. Determine and return the final audio file path reliably. Handle `yt-dlp` specific errors.
-- **Interface:** `download_audio_python_api(url: str, output_dir: str, audio_format: str, output_template: str) -> Optional[str]`
-
-### 4.4 `core/transcriber.py` (Transcriber Module)
-
-- **Responsibilities:** Implement `transcribe_audio_lemonfox`. Initialize the `openai` client with the Lemonfox base URL and API key. Call `client.audio.transcriptions.create()` passing the audio file and parameters derived from the `config` dictionary (model, language, speaker labels, etc.). Return the result dictionary. Handle API-related exceptions.
-- **Interface:** `transcribe_audio_lemonfox(audio_path: str, model_name: str, api_key: str, **kwargs) -> Optional[dict]`
-
-### 4.5 `core/formatter.py` (Formatter Module)
-
-- **Responsibilities:** Implement `generate_txt` and `generate_srt`. Take the structured result from the transcriber. Format timestamps correctly for SRT. Write output to specified file paths.
-- **Interface:** `generate_txt(transcript_result: dict, output_path: str) -> bool`, `generate_srt(transcript_result: dict, output_path: str) -> bool`
+- **Responsibilities:** Encapsulates the core logic for downloading, transcribing, and formatting. Exposes functions like `run_pipeline`, `download_audio_python_api`, `transcribe_audio_lemonfox`, `generate_txt`, `generate_srt`. Handles internal error handling and logging.
+- **Interface:** Python functions imported by `transcriptor-app`.
 
 ## 5. Technology Stack
 
 - **Language:** Python (Version 3.9+ recommended)
-- **Core Libraries (from `requirements.txt`):**
-  - `yt-dlp`: ==2025.03.31
-  - `openai`: ==1.70.0 (for interacting with the Lemonfox API)
+- **Application Libraries (`transcriptor-app/requirements.txt`):**
+  - `transcriptor-core`: The core logic library (installed locally via `-e`).
   - `python-dotenv`: For loading API keys from `.env`.
   - `fastapi`: Web framework for the backend API.
   - `uvicorn[standard]`: ASGI server to run FastAPI.
-  - `python-multipart`: For potential future file uploads (though not used currently).
+  - `python-multipart`: For form data handling in FastAPI.
   - `jinja2`: For HTML templating.
+- **Core Library Dependencies (`transcriptor-core/requirements.txt`):**
+  - `yt-dlp`: ==2025.03.31
+  - `openai`: ==1.70.0 (for interacting with the Lemonfox API)
 - **Standard Libraries:** `os`, `argparse`, `datetime`, `logging`, `json`, `threading`, `uuid`, `sys`, `importlib`.
 - **External System Dependencies:**
   - `ffmpeg` / `ffprobe`: Latest stable version, must be installed system-wide and accessible in the `PATH`.
@@ -214,19 +198,21 @@ The application is structured into distinct packages:
 
 - **Programming Language:**
   - Python (Version 3.9+ recommended)
-- **Core Python Libraries (via `pip` / `requirements.txt`):**
-  - `yt-dlp`
-  - `openai`
+- **Application Python Libraries (`transcriptor-app` via `pip`):**
+  - `transcriptor-core` (local editable install)
   - `python-dotenv`
   - `fastapi`
   - `uvicorn[standard]`
   - `python-multipart`
   - `jinja2`
+- **Core Library Python Libraries (`transcriptor-core` via `pip`):**
+  - `yt-dlp`
+  - `openai`
 - **Standard Python Libraries (Built-in):**
   - `os`, `sys`, `argparse`, `datetime`, `logging`, `json`, `threading`, `uuid`, `importlib`
 - **External System Dependencies (Manual Installation Required):**
   - `ffmpeg` / `ffprobe`: Latest stable version, accessible in system `PATH`.
-- **Development/Setup Tools (from `requirements-dev.txt`):**
+- **Development/Setup Tools (from `requirements-dev.txt` in respective projects):**
   - `pip`
   - `pytest`
   - `pytest-cov`
@@ -274,18 +260,18 @@ The application is structured into distinct packages:
 
 - **Prerequisites:** Python 3.9+, `pip`, `ffmpeg` & `ffprobe` in system `PATH`. `Git` (optional, for cloning).
 - **Installation Steps:**
-  1.  Obtain code (e.g., `git clone ...`).
-  2.  Navigate to project directory.
+  1.  Obtain code for both `transcriptor-app` and `transcriptor-core` (e.g., clone both repositories into the same parent directory).
+  2.  Navigate to the `transcriptor-app` project directory.
   3.  Create virtual environment: `python -m venv .venv`
   4.  Activate environment: `source .venv/bin/activate` (Linux/macOS) or `.venv\Scripts\activate` (Windows).
-  5.  Install Python dependencies: `pip install -r requirements.txt` (A `requirements.txt` file should list `yt-dlp`, `openai`).
-  6.  Ensure Lemonfox API Key is available in a `.env` file in the project root.
+  5.  Install application dependencies and the core library: `pip install -r requirements.txt`. This uses the `-e ../transcriptor-core` line to install the local core library in editable mode.
+  6.  Ensure Lemonfox API Key is available in a `.env` file in the `transcriptor-app` project root.
 - **Running:**
-  - **CLI:**
+  - **CLI:** (Run from `transcriptor-app` directory)
     ```bash
     python interfaces/cli/main.py <URL> --model whisper-1 --formats txt srt --output-dir ./transcripts
     ```
-  - **Web UI:**
+  - **Web UI:** (Run from `transcriptor-app` directory)
     ```bash
     uvicorn interfaces.web.main:app --reload --host 127.0.0.1 --port 8000
     ```
@@ -332,9 +318,9 @@ The application is structured into distinct packages:
 
 A comprehensive testing strategy is outlined in `testPlan.md`. The approach includes:
 
-- **Unit Testing:** Using `pytest` and `unittest.mock` to test individual functions and modules in isolation (primarily focusing on `formatter.py`, with mocked dependencies for `downloader.py` and `transcriber.py`).
-- **Integration Testing:** Using `pytest` and mocking (`unittest.mock`) in `tests/integration/` to verify the interaction and data flow within the `pipeline.run_pipeline` function and its calls to `downloader`, `transcriber`, and `formatter`. Mocks external dependencies (yt-dlp API, Lemonfox API, filesystem for output).
-- **End-to-End (E2E) Testing:** Implemented using `pytest` and `subprocess` in `tests/e2e/` to execute the CLI application (`python interfaces/cli/main.py ...`) and verify critical user workflows against real external services (requires network, API key). Covers core success/failure scenarios and option handling. (Web UI E2E tests are not yet implemented).
+- **Unit Testing:** Resides within the `transcriptor-core` project (`transcriptor-core/tests/unit/`). Uses `pytest` and `unittest.mock` to test individual functions of the core library in isolation.
+- **Integration Testing:** Resides within the `transcriptor-core` project (`transcriptor-core/tests/integration/`). Uses `pytest` and mocking to verify the interaction and data flow within the `transcriptor_core.pipeline.run_pipeline` function, mocking external APIs and filesystem interactions.
+- **End-to-End (E2E) Testing:** Resides within the `transcriptor-app` project (`transcriptor-app/tests/e2e/`). Uses `pytest` and `subprocess` to execute the CLI application (`python interfaces/cli/main.py ...`) and verify critical user workflows against real external services, using the installed `transcriptor-core` library. (Web UI E2E tests are not yet implemented).
 - **Manual Functional Testing:** For exploratory testing, usability checks, and verifying scenarios not covered by automated tests (covers both CLI and Web UI).
 
-The tests are organized within a `tests/` directory structure (`tests/unit/`, `tests/integration/`, `tests/e2e/`). They can be executed using the `pytest` command after installing development dependencies from `requirements-dev.txt`. Test coverage can be measured using `pytest --cov=core tests/`. Refer to `testPlan.md` (now relative path within docs) for full details and specific test cases.
+Refer to `docs/testPlan.md` for full details and specific test cases. Unit/Integration tests are run within the `transcriptor-core` project, while E2E tests are run within the `transcriptor-app` project.

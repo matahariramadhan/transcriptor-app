@@ -6,21 +6,11 @@ from dotenv import load_dotenv
 from typing import List, Optional, Dict, Any # Added Dict, Any
 import yt_dlp # Added yt_dlp import here
 
-# Add src directory to Python path to allow sibling imports
-# Not strictly necessary if run as a module, but good for direct execution
-import sys
-# Add project root to Python path to allow imports like `from core import ...`
-# This assumes the script is run from the project root (e.g., python interfaces/cli/main.py)
-# Or that the project is installed as a package.
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-# Now import from the core package
-from core.downloader import download_audio_python_api
-from core.transcriber import transcribe_audio_lemonfox
-from core.formatter import generate_txt, generate_srt
-from core.pipeline import run_pipeline
+# Now import from the installed transcriptor_core package
+from transcriptor_core.downloader import download_audio_python_api
+from transcriptor_core.transcriber import transcribe_audio_lemonfox
+from transcriptor_core.formatter import generate_txt, generate_srt
+from transcriptor_core.pipeline import run_pipeline
 
 
 # Configure logging
