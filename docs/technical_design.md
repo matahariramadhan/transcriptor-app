@@ -63,11 +63,7 @@ The application follows a pipeline architecture initiated from either a command-
 - **Orchestration Layer:** Coordinates the workflow.
   - For CLI: `core/pipeline.py` called directly.
   - For Web UI: `interfaces/web/processing.py` initiates `core/pipeline.py` in a background thread and manages job state.
-- **Core Library (`transcriptor-core`):** An external, installable Python package containing the core logic.
-  - **Downloader Module:** Interacts with `yt-dlp` to fetch and extract audio.
-  - **Transcriber Module:** Interacts with the Lemonfox API via the configured `openai` library client.
-  - **Formatter Module:** Processes transcription output into desired file formats.
-  - **Pipeline Module:** Orchestrates the download -> transcribe -> format process.
+- **Core Library (`transcriptor-core`):** An external, installable Python package containing the core logic (downloading, transcribing, formatting). See `transcriptor-core/docs/architecture.md` for details.
 - **Filesystem:** Reads/writes audio and transcript files.
 
 ### 3.2 Modularity
@@ -90,9 +86,9 @@ The application relies on the external `transcriptor-core` library for its main 
 1.  User executes `python interfaces/cli/main.py <URL1> <URL2> ... [options]`.
 2.  `interfaces/cli/main.py` parses arguments (`argparse`), loads API key (`dotenv`), creates `config` dict.
 3.  `interfaces/cli/main.py` calls `transcriptor_core.pipeline.run_pipeline(urls, api_key, config, ...)`.
-4.  The `transcriptor_core` library executes the pipeline (downloader, transcriber, formatter).
-5.  `run_pipeline` returns results summary.
-6.  `interfaces/cli/main.py` prints summary and exits.
+4.  The `transcriptor_core` library executes its internal pipeline.
+5.  `run_pipeline` returns a results summary.
+6.  `interfaces/cli/main.py` prints the summary and exits.
 
 **Web UI Flow:**
 
@@ -114,9 +110,9 @@ The application relies on the external `transcriptor-core` library for its main 
     b. Loads API key (`dotenv`).
     c. Creates output directories.
     d. Calls `transcriptor_core.pipeline.run_pipeline`, passing the `update_status` callback.
-    e. The `transcriptor_core` library executes the pipeline, invoking `update_status('downloading')`, `update_status('transcribing')`, `update_status('formatting')` at appropriate times.
+    e. The `transcriptor_core` library executes its internal pipeline, invoking the `update_status` callback at different stages (e.g., 'downloading', 'transcribing', 'formatting').
     f. `update_status` modifies the shared `jobs` dict.
-    g. After `run_pipeline` finishes, `run_transcription_job_in_background` updates the final status (`completed` or `failed`), error message, and file list in the `jobs` dict based on `pipeline_results`.
+    g. After `run_pipeline` finishes, `run_transcription_job_in_background` updates the final status (`completed` or `failed`), error message, and file list in the `jobs` dict based on the returned `pipeline_results`.
 10. Frontend JS (`jobManager.js`):
     a. Receives `job_id` from `/submit_job`.
     b. Calls `addJobToUI` to display the initial job card.
@@ -170,26 +166,17 @@ The application relies on the external `transcriptor-core` library for its main 
   - `uiInteractions.js`: Handles general UI events (button clicks, checkbox changes, modals, form clearing) not directly related to job state polling.
 - **Interface:** Browser DOM events, functions exported/imported between modules.
 
-### 4.5 `core/pipeline.py` (Core Pipeline Logic)
-
-### 4.5 `transcriptor-core` Library (External Package)
-
-- **Responsibilities:** Encapsulates the core logic for downloading, transcribing, and formatting. Exposes functions like `run_pipeline`, `download_audio_python_api`, `transcribe_audio_lemonfox`, `generate_txt`, `generate_srt`. Handles internal error handling and logging.
-- **Interface:** Python functions imported by `transcriptor-app`.
-
 ## 5. Technology Stack
 
 - **Language:** Python (Version 3.9+ recommended)
+- **Language:** Python (Version 3.9+ recommended)
 - **Application Libraries (`transcriptor-app/requirements.txt`):**
-  - `transcriptor-core`: The core logic library (installed locally via `-e`).
+  - `transcriptor-core`: The core logic library (installed locally via `-e ../transcriptor-core`). See `transcriptor-core` project for its dependencies (`yt-dlp`, `openai`).
   - `python-dotenv`: For loading API keys from `.env`.
   - `fastapi`: Web framework for the backend API.
   - `uvicorn[standard]`: ASGI server to run FastAPI.
   - `python-multipart`: For form data handling in FastAPI.
   - `jinja2`: For HTML templating.
-- **Core Library Dependencies (`transcriptor-core/requirements.txt`):**
-  - `yt-dlp`: ==2025.03.31
-  - `openai`: ==1.70.0 (for interacting with the Lemonfox API)
 - **Standard Libraries:** `os`, `argparse`, `datetime`, `logging`, `json`, `threading`, `uuid`, `sys`, `importlib`.
 - **External System Dependencies:**
   - `ffmpeg` / `ffprobe`: Latest stable version, must be installed system-wide and accessible in the `PATH`.
@@ -199,15 +186,13 @@ The application relies on the external `transcriptor-core` library for its main 
 - **Programming Language:**
   - Python (Version 3.9+ recommended)
 - **Application Python Libraries (`transcriptor-app` via `pip`):**
-  - `transcriptor-core` (local editable install)
-  - `python-dotenv`
-  - `fastapi`
-  - `uvicorn[standard]`
-  - `python-multipart`
-  - `jinja2`
-- **Core Library Python Libraries (`transcriptor-core` via `pip`):**
-  - `yt-dlp`
-  - `openai`
+  - `transcriptor-core` (local editable install) - Provides core transcription logic.
+  - `python-dotenv` - Loads `.env` file.
+  - `fastapi` - Web framework.
+  - `uvicorn[standard]` - ASGI server.
+  - `python-multipart` - Form handling.
+  - `jinja2` - HTML templating.
+- **Core Library Dependencies:** See `transcriptor-core/requirements.txt` (`yt-dlp`, `openai`).
 - **Standard Python Libraries (Built-in):**
   - `os`, `sys`, `argparse`, `datetime`, `logging`, `json`, `threading`, `uuid`, `importlib`
 - **External System Dependencies (Manual Installation Required):**
@@ -225,36 +210,8 @@ The application relies on the external `transcriptor-core` library for its main 
   - Web UI: Options selected in the browser, sent as JSON to `/submit_job`.
   - Both: Configuration dictionary passed to `core.pipeline.run_pipeline`. Lemonfox API Key managed via `.env` file.
 - **Job State (Web UI):** In-memory Python dictionary (`jobs`) in `interfaces/web/main.py`, shared with `interfaces/web/processing.py`. Contains status, config, results, errors, timestamps, etc., keyed by `job_id`.
-- **Intermediate:** Audio file path (string). Lemonfox transcription result (dict): Structure depends on `response_format`. Example:
-  ```json
-  {
-    "task": "transcribe",
-    "language": "en",
-    "duration": 13.169,
-    "text": "...",
-    "segments": [
-      {
-        "id": 0,
-        "text": "...",
-        "start": 0.1,
-        "end": 6.42,
-        "language": "en",
-        "speaker": "SPEAKER_00",
-        "words": [
-          {
-            "word": "Artificial",
-            "start": 0.1,
-            "end": 0.561,
-            "speaker": "SPEAKER_00"
-          }
-          // ... more words
-        ]
-      }
-      // ... more segments
-    ]
-  }
-  ```
-- **Output:** String content for `.txt` and `.srt` files.
+- **Intermediate:** Audio file path (string). Transcription result dictionary (internal to `transcriptor-core`).
+- **Output:** String content for `.txt` and `.srt` files generated by `transcriptor-core`.
 
 ## 7. Deployment and Setup
 
@@ -316,11 +273,7 @@ The application relies on the external `transcriptor-core` library for its main 
 
 ## 11. Testing Strategy
 
-A comprehensive testing strategy is outlined in `testPlan.md`. The approach includes:
+The testing strategy is split between the two projects:
 
-- **Unit Testing:** Resides within the `transcriptor-core` project (`transcriptor-core/tests/unit/`). Uses `pytest` and `unittest.mock` to test individual functions of the core library in isolation.
-- **Integration Testing:** Resides within the `transcriptor-core` project (`transcriptor-core/tests/integration/`). Uses `pytest` and mocking to verify the interaction and data flow within the `transcriptor_core.pipeline.run_pipeline` function, mocking external APIs and filesystem interactions.
-- **End-to-End (E2E) Testing:** Resides within the `transcriptor-app` project (`transcriptor-app/tests/e2e/`). Uses `pytest` and `subprocess` to execute the CLI application (`python interfaces/cli/main.py ...`) and verify critical user workflows against real external services, using the installed `transcriptor-core` library. (Web UI E2E tests are not yet implemented).
-- **Manual Functional Testing:** For exploratory testing, usability checks, and verifying scenarios not covered by automated tests (covers both CLI and Web UI).
-
-Refer to `docs/testPlan.md` for full details and specific test cases. Unit/Integration tests are run within the `transcriptor-core` project, while E2E tests are run within the `transcriptor-app` project.
+- **Core Library Testing (`transcriptor-core`):** Focuses on Unit and Integration tests for the internal logic. See `transcriptor-core/docs/testing.md` for details.
+- **Application Testing (`transcriptor-app`):** Focuses on End-to-End (E2E) tests for the interfaces (CLI, Web UI) and Manual Functional Testing. See `docs/testPlan.md` (this project) for details on E2E and Manual testing.
