@@ -56,12 +56,13 @@ This flow describes using the graphical interface running locally via the built-
     - A new job card appears at the top of the "Active Jobs" list in the UI, initially showing "Pending".
 6.  **Monitor Progress:**
     - The frontend JavaScript polls the `/status/<job_id>` endpoint periodically (e.g., every second).
-    - The job card updates dynamically to show the current status (Downloading, Transcribing, Formatting) and updates the progress bar accordingly (based on stage).
-7.  **View Results:**
+    - The job card updates dynamically to show the current status (Downloading, Transcribing, Formatting, Cancelling, Cancelled) and updates the progress bar accordingly.
+    - **Cancel Action:** While the job is in a pending or processing state (Downloading, Transcribing, Formatting), the user can click the Cancel button (<i class="fas fa-times"></i>) on the job card. The UI updates to "Cancelling", and the backend attempts to stop the job at the next checkpoint. The final status will become "Cancelled".
+7.  **View Results / Handle Failures:**
     - When polling indicates a job status is "Completed":
       - The job card updates to show "Completed" status and reveals download buttons/links for the generated files (e.g., TXT, SRT). Files are located in the `web_outputs/<job_id>/` directory.
       - A preview button might be available (functionality TBD).
     - If polling indicates a job status is "Failed":
       - The job card updates to show "Failed" status and displays an error message.
-      - Retry/Details buttons might be available (functionality TBD).
+      - **Retry Action:** The user can click the Retry button (<i class="fas fa-redo"></i>) on the failed job card. This submits a _new_ job with the same parameters. The old card is marked as "Retried" (or similar), and a new job card appears for the retry attempt.
 8.  **Stop Server:** User stops the local server by pressing `Ctrl+C` in the terminal where Uvicorn was launched.

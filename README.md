@@ -162,7 +162,7 @@ This provides a graphical interface accessible via your web browser.
     - Configure transcription settings like the Whisper model and desired output formats (TXT, SRT).
     - Use "Advanced Options" to set language hints, request speaker labels, or choose to keep intermediate audio files.
     - Click "Start Transcription".
-    - Monitor job progress in the "Active Jobs" list.
+    - Monitor job progress in the "Active Jobs" list. Use the Cancel button (<i class="fas fa-times"></i>) to stop a pending or processing job, or the Retry button (<i class="fas fa-redo"></i>) to resubmit a failed job.
     - Once completed, download links for the transcript files will appear on the job card. Output files are saved locally in the `web_outputs/<job_id>/` directory within the project folder.
 
 ## Project Structure

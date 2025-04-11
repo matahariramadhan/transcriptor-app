@@ -90,7 +90,8 @@ This document outlines the testing strategy for the `TranscriptorApp` applicatio
   - **UI Loading:** Check if the interface loads correctly at `http://127.0.0.1:8000`.
   - **Form Interaction:** Test URL input (single/multiple), option selection (model, formats, advanced).
   - **Job Submission:** Verify jobs start correctly after clicking "Start Transcription".
-  - **Status Polling:** Observe job cards updating through different stages (Pending, Downloading, Transcribing, Formatting, Completed/Failed).
+  - **Status Polling:** Observe job cards updating through different stages (Pending, Downloading, Transcribing, Formatting, Completed/Failed, Cancelling, Cancelled).
+  - **Cancel/Retry:** Test clicking the Cancel button on a processing job and verify the status updates correctly. Test clicking the Retry button on a failed job and verify a new job is submitted and the old card is updated.
   - **Result Display:** Check if download links appear correctly for completed jobs.
   - **File Download:** Verify downloaded files contain expected transcript content.
   - **Error Handling:** Test submitting invalid URLs, check how errors are displayed on job cards. Test scenarios where background processing might fail.

@@ -73,8 +73,8 @@ The application relies on the external `transcriptor-core` library for its main 
 - **`interfaces/`**: Contains different ways to interact with the core engine.
   - `cli/`: The command-line interface (`main.py`).
   - `web/`: The local web user interface.
-    - `main.py`: FastAPI backend server defining API endpoints (`/`, `/submit_job`, `/status`, `/result`, `/download`).
-    - `processing.py`: Handles background job execution using `threading` and updates a shared job status dictionary. Calls `transcriptor_core.pipeline.run_pipeline`.
+    - `main.py`: FastAPI backend server defining API endpoints (`/`, `/submit_job`, `/status/{job_id}`, `/result/{job_id}`, `/download/{job_id}/{filename}`, `/cancel/{job_id}`, `/retry/{job_id}`).
+    - `processing.py`: Handles background job execution using `threading` and updates a shared job status dictionary. Calls `transcriptor_core.pipeline.run_pipeline`. Checks for cancellation flags.
     - `static/`: Contains CSS (`style.css`) and modular JavaScript files (`main.js`, `apiClient.js`, `jobManager.js`, `uiInteractions.js`) for frontend logic.
     - `templates/`: Contains the main HTML template (`index.html`) using Jinja2.
 - **`tests/e2e/`**: Contains end-to-end tests for the application interfaces.
@@ -149,20 +149,20 @@ The application relies on the external `transcriptor-core` library for its main 
 
 ### 4.2 `interfaces/web/main.py` (Web Backend API)
 
-- **Responsibilities:** Define FastAPI app. Serve static files and HTML template. Define API endpoints (`/`, `/submit_job`, `/status/{job_id}`, `/result/{job_id}`, `/download/{job_id}/{filename}`). Handle request validation (Pydantic). Manage shared `jobs` dictionary (simple in-memory store). Initiate background tasks via `interfaces.web.processing.start_job`. Retrieve job status/results from the `jobs` dict. Serve file downloads.
+- **Responsibilities:** Define FastAPI app. Serve static files and HTML template. Define API endpoints (`/`, `/submit_job`, `/status/{job_id}`, `/result/{job_id}`, `/download/{job_id}/{filename}`, `/cancel/{job_id}`, `/retry/{job_id}`). Handle request validation (Pydantic). Manage shared `jobs` dictionary (simple in-memory store). Initiate background tasks via `interfaces.web.processing.start_job`. Retrieve job status/results from the `jobs` dict. Set cancellation flags. Initiate retries (as new jobs). Serve file downloads.
 - **Interface:** HTTP API endpoints.
 
 ### 4.3 `interfaces/web/processing.py` (Web Background Processing)
 
-- **Responsibilities:** Define `start_job` to initialize job state and launch background thread. Define `run_transcription_job_in_background` (target for thread) which sets up environment (API key, directories), defines status callback, calls `transcriptor_core.pipeline.run_pipeline` with the callback, and updates the final job state in the shared `jobs` dictionary based on pipeline results or exceptions.
+- **Responsibilities:** Define `start_job` to initialize job state (including `cancelled` flag and original parameters) and launch background thread. Define `run_transcription_job_in_background` (target for thread) which sets up environment (API key, directories), defines status callback, checks cancellation flag before/after calling `transcriptor_core.pipeline.run_pipeline` with the callback, and updates the final job state in the shared `jobs` dictionary based on pipeline results or exceptions.
 - **Interface:** `start_job(...)`, `run_transcription_job_in_background(...)`.
 
 ### 4.4 `interfaces/web/static/*.js` (Web Frontend Logic)
 
 - **Responsibilities:**
   - `main.js`: Entry point, initializes other modules, handles main job submission logic.
-  - `apiClient.js`: Encapsulates `fetch` calls to the backend API endpoints.
-  - `jobManager.js`: Manages the list of active jobs in the UI, handles status polling (`setInterval`), updates job card display based on status, fetches final results.
+  - `apiClient.js`: Encapsulates `fetch` calls to the backend API endpoints (including `/cancel`, `/retry`).
+  - `jobManager.js`: Manages the list of active jobs in the UI, handles status polling (`setInterval`), updates job card display based on status (including showing/hiding Cancel/Retry buttons), fetches final results, handles button click events via delegation.
   - `uiInteractions.js`: Handles general UI events (button clicks, checkbox changes, modals, form clearing) not directly related to job state polling.
 - **Interface:** Browser DOM events, functions exported/imported between modules.
 

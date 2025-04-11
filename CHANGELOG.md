@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cancel (<i class="fas fa-times"></i>) and Retry (<i class="fas fa-redo"></i>) buttons to job cards in the Web UI (`interfaces/web/`).
+- API endpoints (`/cancel/{job_id}`, `/retry/{job_id}`) and background processing logic to support cancellation (flag-based) and retries (as new jobs).
+- `conftest.py` to automatically load `.env` file for E2E tests (`tests/e2e/`).
+
+### Fixed
+
+- E2E tests being skipped due to API key check running before `.env` was loaded by the test environment.
+
 ## [1.3.0] - 2025-04-10
 
 ### Refactored
