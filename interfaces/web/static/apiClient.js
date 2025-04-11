@@ -83,5 +83,60 @@ export async function getJobResult(jobId) {
   return await response.json();
 }
 
-// Potential future function:
-// export async function cancelJobRequest(jobId) { ... }
+/**
+ * Sends a request to cancel a job.
+ * @param {string} jobId - The ID of the job to cancel.
+ * @returns {Promise<object>} - The response message from the server.
+ * @throws {Error} - Throws an error if the request fails.
+ */
+export async function cancelJob(jobId) {
+  const response = await fetch(`${API_BASE}/cancel/${jobId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json", // Even if no body, good practice
+    },
+  });
+
+  if (!response.ok) {
+    let errorDetail = response.statusText;
+    try {
+      const errorData = await response.json();
+      errorDetail = errorData.detail || errorDetail;
+    } catch (e) {
+      // Ignore if response body is not JSON
+    }
+    const error = new Error(`Error ${response.status}: ${errorDetail}`);
+    error.status = response.status;
+    throw error;
+  }
+  return await response.json(); // { message: string }
+}
+
+/**
+ * Sends a request to retry a failed job.
+ * @param {string} jobId - The ID of the failed job to retry.
+ * @returns {Promise<object>} - The response containing the new job ID.
+ * @throws {Error} - Throws an error if the request fails.
+ */
+export async function retryJob(jobId) {
+  const response = await fetch(`${API_BASE}/retry/${jobId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json", // Even if no body, good practice
+    },
+  });
+
+  if (!response.ok) {
+    let errorDetail = response.statusText;
+    try {
+      const errorData = await response.json();
+      errorDetail = errorData.detail || errorDetail;
+    } catch (e) {
+      // Ignore if response body is not JSON
+    }
+    const error = new Error(`Error ${response.status}: ${errorDetail}`);
+    error.status = response.status;
+    throw error;
+  }
+  return await response.json(); // { message: string, new_job_id: string }
+}

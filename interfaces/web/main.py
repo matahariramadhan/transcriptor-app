@@ -43,6 +43,18 @@ templates = Jinja2Templates(directory=templates_dir)
 # Stores job status, config, results etc. Keyed by job_id.
 jobs: Dict[str, Dict[str, Any]] = {}
 
+# --- Job Status Constants ---
+# Define constants for job statuses to avoid typos
+STATUS_PENDING = "pending"
+STATUS_PROCESSING = "processing" # Generic processing, might be refined by callback
+STATUS_DOWNLOADING = "downloading"
+STATUS_TRANSCRIBING = "transcribing"
+STATUS_FORMATTING = "formatting"
+STATUS_COMPLETED = "completed"
+STATUS_FAILED = "failed"
+STATUS_CANCELLING = "cancelling"
+STATUS_CANCELLED = "cancelled"
+
 
 # --- Pydantic Models ---
 class JobConfigRequest(BaseModel):
@@ -181,6 +193,75 @@ async def download_file_endpoint(job_id: str, filename: str):
 
     logger.info(f"Serving file download: {file_path}")
     return FileResponse(path=file_path, filename=filename, media_type='application/octet-stream')
+
+
+@app.post("/cancel/{job_id}", status_code=200)
+async def cancel_job_endpoint(job_id: str):
+    """Attempts to cancel a running job."""
+    logger.info(f"Cancel requested for job: {job_id}")
+    job_info = jobs.get(job_id)
+    if not job_info:
+        logger.warning(f"Cancel request failed: Job {job_id} not found.")
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    current_status = job_info.get("status")
+    # Define cancellable states
+    cancellable_statuses = [
+        STATUS_PENDING,
+        STATUS_PROCESSING,
+        STATUS_DOWNLOADING,
+        STATUS_TRANSCRIBING,
+        STATUS_FORMATTING,
+    ]
+
+    if current_status in cancellable_statuses:
+        job_info["cancelled"] = True # Set the flag for the background task to check
+        job_info["status"] = STATUS_CANCELLING # Update status immediately
+        logger.info(f"Job {job_id} marked for cancellation.")
+        return {"message": "Job cancellation requested."}
+    elif current_status == STATUS_CANCELLING or current_status == STATUS_CANCELLED:
+        logger.info(f"Job {job_id} is already cancelling or cancelled.")
+        return {"message": "Job already cancelling or cancelled."}
+    else:
+        logger.warning(f"Job {job_id} cannot be cancelled in its current state: {current_status}")
+        raise HTTPException(status_code=400, detail=f"Job cannot be cancelled in state: {current_status}")
+
+
+@app.post("/retry/{job_id}", status_code=202)
+async def retry_job_endpoint(job_id: str):
+    """Retries a failed job by creating and submitting a new job with the original parameters."""
+    logger.info(f"Retry requested for job: {job_id}")
+    original_job_info = jobs.get(job_id)
+    if not original_job_info:
+        logger.warning(f"Retry request failed: Job {job_id} not found.")
+        raise HTTPException(status_code=404, detail="Original job not found")
+
+    if original_job_info.get("status") != STATUS_FAILED:
+        logger.warning(f"Retry requested for job {job_id} which did not fail (status: {original_job_info.get('status')}).")
+        raise HTTPException(status_code=400, detail="Only failed jobs can be retried.")
+
+    # Retrieve original parameters needed to start a new job
+    original_urls = original_job_info.get("original_urls")
+    original_config = original_job_info.get("original_config")
+
+    if not original_urls or not original_config:
+         logger.error(f"Cannot retry job {job_id}: Missing original URLs or config in stored job info.")
+         raise HTTPException(status_code=500, detail="Cannot retry job: Internal data missing.")
+
+    logger.info(f"Retrying job {job_id} with URLs: {original_urls}")
+    logger.info(f"Retry config: {original_config}")
+
+    # Start a *new* job using the processing module function
+    # Pass the shared 'jobs' dictionary
+    new_job_id = start_job(
+        urls=original_urls,
+        config=original_config,
+        jobs_dict=jobs
+    )
+
+    logger.info(f"Retry of job {job_id} submitted as new job {new_job_id}.")
+    # Return the ID of the *new* job
+    return {"message": "Retry submitted as a new job.", "new_job_id": new_job_id}
 
 
 # --- Run Server (for local development) ---

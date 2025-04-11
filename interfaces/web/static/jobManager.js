@@ -3,13 +3,30 @@
  * Handles adding jobs to the UI, polling status, and updating job cards.
  */
 
-import { getJobStatus, getJobResult } from "./apiClient.js";
+import {
+  getJobStatus,
+  getJobResult,
+  cancelJob,
+  retryJob,
+} from "./apiClient.js"; // Import new functions
 // Potentially import UI update functions if we further modularize updateJobCardUI
 // import { showModal } from './uiInteractions.js'; // If needed for error display
 
 // --- State and DOM References ---
 const activeJobs = {}; // Store job data and interval IDs: { job_id: { intervalId: null, status: 'pending', element: null } }
 const jobsListContainer = document.querySelector(".space-y-5"); // Container for job cards
+
+// --- Constants for Statuses (align with backend) ---
+const STATUS_PENDING = "pending";
+const STATUS_PROCESSING = "processing"; // Generic processing, might be refined by callback
+const STATUS_DOWNLOADING = "downloading";
+const STATUS_TRANSCRIBING = "transcribing";
+const STATUS_FORMATTING = "formatting";
+const STATUS_COMPLETED = "completed";
+const STATUS_FAILED = "failed";
+const STATUS_CANCELLING = "cancelling";
+const STATUS_CANCELLED = "cancelled";
+const STATUS_ERROR = "error"; // Frontend specific error status
 
 // --- Exported Functions ---
 
@@ -30,11 +47,7 @@ export function addJobToUI(jobId, url) {
     element: jobElement,
   };
 
-  // Add event listener for the cancel button on the new card
-  const cancelButton = jobElement.querySelector(".job-cancel-button");
-  if (cancelButton) {
-    cancelButton.addEventListener("click", () => cancelJob(jobId));
-  }
+  // Event listeners are now handled by delegation (see setupEventListeners below)
 }
 
 export function startPollingJobStatus(jobId) {
@@ -81,9 +94,12 @@ function createJobCardHTML(jobId, url) {
           </div>
           <p class="text-sm text-gray-500 truncate max-w-2xl job-url">${truncatedUrl}</p>
         </div>
-        <div class="flex space-x-2">
-          <button class="text-red-500 hover:text-red-700 p-1 transition job-cancel-button" title="Cancel">
+        <div class="flex space-x-2 job-actions">
+          <button class="text-red-500 hover:text-red-700 p-1 transition job-cancel-button hidden" title="Cancel" data-job-id="${jobId}">
             <i class="fas fa-times"></i>
+          </button>
+           <button class="text-blue-500 hover:text-blue-700 p-1 transition job-retry-button hidden" title="Retry" data-job-id="${jobId}">
+            <i class="fas fa-redo"></i>
           </button>
         </div>
       </div>
@@ -143,16 +159,23 @@ async function updateJobStatus(jobId) {
     }
   } catch (error) {
     console.error(`Error polling status for job ${jobId}:`, error);
-    // Optionally stop polling on network errors
+    // Optionally stop polling on specific errors
     if (error.status === 404) {
-      // Check specific error status if needed
+      // Job not found on server (maybe deleted or never existed)
+      console.warn(
+        `Job ${jobId} not found on server during polling. Stopping polling.`
+      );
       stopPollingJobStatus(jobId);
       updateJobCardUI(jobId, {
-        status: "error",
+        status: STATUS_ERROR,
         error: "Job not found on server.",
       });
     } else {
-      // Handle other errors (e.g., temporary network issue) - maybe retry or just log
+      // Handle other errors (e.g., temporary network issue) - maybe just log and continue polling for a bit
+      console.error(
+        `Network or other error polling status for job ${jobId}:`,
+        error
+      );
     }
   }
 }
@@ -171,40 +194,67 @@ function updateJobCardUI(jobId, data) {
   const statusSection = jobElement.querySelector(".job-status-section");
   const detailsSection = jobElement.querySelector(".job-details-section");
   const detailsText = jobElement.querySelector(".job-details-text");
+  const cancelButton = jobElement.querySelector(".job-cancel-button");
+  const retryButton = jobElement.querySelector(".job-retry-button");
 
-  // Reset sections
+  // Reset sections and buttons
   errorSection.classList.add("hidden");
   resultsSection.classList.add("hidden");
   statusSection.classList.remove("hidden"); // Show status section by default
+  cancelButton?.classList.add("hidden");
+  retryButton?.classList.add("hidden");
 
   let statusText = data.status || "Unknown";
   let statusColorClass = "border-gray-400"; // Default border
   let indicatorColorClass = "bg-gray-400"; // Default indicator
   let progressWidth = "0%"; // Default progress
+  let showCancel = false;
+  let showRetry = false;
 
   switch (data.status) {
-    case "pending":
+    case STATUS_PENDING:
       statusText = "Pending...";
+      showCancel = true;
       break;
-    case "downloading":
+    case STATUS_DOWNLOADING:
       statusText = "Downloading...";
       statusColorClass = "border-secondary-400";
       indicatorColorClass = "bg-secondary-400";
       progressWidth = "25%"; // Example progress
+      showCancel = true;
       break;
-    case "transcribing":
+    case STATUS_TRANSCRIBING:
       statusText = "Transcribing...";
       statusColorClass = "border-primary-500";
       indicatorColorClass = "bg-primary-500";
       progressWidth = "60%"; // Example progress
+      showCancel = true;
       break;
-    case "formatting":
+    case STATUS_FORMATTING:
       statusText = "Formatting...";
       statusColorClass = "border-yellow-500";
       indicatorColorClass = "bg-yellow-500";
       progressWidth = "90%"; // Example progress
+      showCancel = true;
       break;
-    case "completed":
+    case STATUS_CANCELLING:
+      statusText = "Cancelling...";
+      statusColorClass = "border-red-400"; // Use a slightly different red
+      indicatorColorClass = "bg-red-400";
+      progressWidth = progressBarElement?.style.width || "0%"; // Keep current progress
+      // Keep cancel button visible but maybe disable it? Or hide? Let's hide.
+      showCancel = false;
+      break;
+    case STATUS_CANCELLED:
+      statusText = "Cancelled";
+      statusColorClass = "border-red-500";
+      indicatorColorClass = "bg-red-500";
+      progressWidth = progressBarElement?.style.width || "0%"; // Keep progress where it stopped
+      statusSection.classList.remove("hidden"); // Keep status section visible
+      errorSection.classList.add("hidden"); // Hide error section
+      resultsSection.classList.add("hidden"); // Hide results
+      break;
+    case STATUS_COMPLETED:
       statusText = "Completed";
       statusColorClass = "border-green-500";
       indicatorColorClass = "bg-green-500";
@@ -212,7 +262,7 @@ function updateJobCardUI(jobId, data) {
       statusSection.classList.add("hidden"); // Hide progress bar section
       resultsSection.classList.remove("hidden"); // Show results buttons
       break;
-    case "failed":
+    case STATUS_FAILED:
       statusText = "Failed";
       statusColorClass = "border-red-500";
       indicatorColorClass = "bg-red-500";
@@ -220,22 +270,50 @@ function updateJobCardUI(jobId, data) {
       statusSection.classList.add("hidden"); // Hide progress bar section
       errorSection.classList.remove("hidden");
       errorText.textContent = data.error || "An unknown error occurred.";
+      showRetry = true; // Show retry button on failure
+      break;
+    case STATUS_ERROR: // Frontend specific error
+      statusText = "Error";
+      statusColorClass = "border-red-500";
+      indicatorColorClass = "bg-red-500";
+      statusSection.classList.add("hidden");
+      errorSection.classList.remove("hidden");
+      errorText.textContent = data.error || "An internal UI error occurred.";
       break;
     default:
       statusText = data.status; // Display unknown status directly
+      statusColorClass = "border-gray-500";
+      indicatorColorClass = "bg-gray-500";
   }
 
+  // Update UI elements
   if (statusTextElement) statusTextElement.textContent = statusText;
   if (progressBarElement) progressBarElement.style.width = progressWidth;
   if (progressBarElement)
     progressBarElement.className = `progress-bar h-2.5 rounded-full job-progress-bar ${indicatorColorClass}`; // Update bar color too
   if (statusIndicator)
-    statusIndicator.className = `status-indicator ${indicatorColorClass}`;
+    statusIndicator.className = `status-indicator w-3 h-3 rounded-full mr-2 ${indicatorColorClass}`; // Ensure size/shape
   if (cardElement)
     cardElement.className = `card bg-white rounded-xl shadow-sm p-6 border-l-4 ${statusColorClass}`; // Update border color
 
+  // Show/Hide Action Buttons
+  if (cancelButton) {
+    if (showCancel) {
+      cancelButton.classList.remove("hidden");
+    } else {
+      cancelButton.classList.add("hidden");
+    }
+  }
+  if (retryButton) {
+    if (showRetry) {
+      retryButton.classList.remove("hidden");
+    } else {
+      retryButton.classList.add("hidden");
+    }
+  }
+
   // Update details section if job is completed (can be expanded)
-  if (data.status === "completed" && detailsSection && detailsText) {
+  if (data.status === STATUS_COMPLETED && detailsSection && detailsText) {
     detailsText.textContent = `Processed ${
       data.processed_count || "?"
     } URL(s).`; // Example detail
@@ -290,10 +368,10 @@ async function fetchAndPopulateResults(jobId) {
       } URL(s). ${resultData.files?.length || 0} files generated.`;
     }
   } catch (error) {
-    console.error(`Error processing results for job ${jobId}:`, error);
+    console.error(`Error fetching results for job ${jobId}:`, error);
     updateJobCardUI(jobId, {
-      status: "error",
-      error: "Error processing results.",
+      status: STATUS_ERROR,
+      error: "Failed to fetch results.",
     });
   }
 }
@@ -306,14 +384,89 @@ function stopPollingJobStatus(jobId) {
   }
 }
 
-function cancelJob(jobId) {
-  // TODO: Implement API call to backend to request cancellation
-  console.log(`Requesting cancellation for job ${jobId} (Not implemented)`);
-  // For now, just remove from UI and stop polling
+// --- Event Handlers ---
+
+async function handleCancelClick(jobId) {
+  console.log(`Requesting cancellation for job ${jobId}`);
   const jobElement = activeJobs[jobId]?.element;
-  if (jobElement) {
-    jobElement.remove();
+  const cancelButton = jobElement?.querySelector(".job-cancel-button");
+
+  if (cancelButton) cancelButton.disabled = true; // Disable button immediately
+
+  try {
+    const result = await cancelJob(jobId); // Use apiClient function
+    console.log(
+      `Cancellation request for ${jobId} successful:`,
+      result.message
+    );
+    // Update UI immediately to 'Cancelling' - polling will eventually confirm 'Cancelled'
+    updateJobCardUI(jobId, { status: STATUS_CANCELLING });
+  } catch (error) {
+    console.error(`Error cancelling job ${jobId}:`, error);
+    alert(`Failed to cancel job ${jobId}: ${error.message}`); // Simple error feedback
+    if (cancelButton) cancelButton.disabled = false; // Re-enable button on error
   }
-  stopPollingJobStatus(jobId);
-  delete activeJobs[jobId];
 }
+
+async function handleRetryClick(jobId) {
+  console.log(`Requesting retry for job ${jobId}`);
+  const jobElement = activeJobs[jobId]?.element;
+  const retryButton = jobElement?.querySelector(".job-retry-button");
+
+  if (retryButton) retryButton.disabled = true; // Disable button immediately
+
+  try {
+    const result = await retryJob(jobId); // Use apiClient function
+    console.log(
+      `Retry request for ${jobId} successful. New job ID: ${result.new_job_id}`
+    );
+    alert(`Job ${jobId} submitted for retry as new job ${result.new_job_id}.`); // Simple feedback
+
+    // Visually update the old failed card
+    if (jobElement) {
+      const statusTextElement = jobElement.querySelector(".job-status-text");
+      if (statusTextElement) statusTextElement.textContent = "Retried";
+      jobElement.style.opacity = "0.6"; // Grey out slightly
+      retryButton?.classList.add("hidden"); // Hide retry button
+    }
+    stopPollingJobStatus(jobId); // Stop polling the old failed job
+
+    // Add the new job to the UI and start polling it
+    // Note: This assumes the backend immediately adds the new job to the 'jobs' dict
+    // A small delay might mean polling picks it up anyway. Let's explicitly add it.
+    // We need the URL for the new card - fetch it from the old job's data if stored,
+    // otherwise, we might need the backend retry endpoint to return more info,
+    // or just show a generic title for the new job initially.
+    // For now, let's rely on polling to pick up the new job.
+  } catch (error) {
+    console.error(`Error retrying job ${jobId}:`, error);
+    alert(`Failed to retry job ${jobId}: ${error.message}`); // Simple error feedback
+    if (retryButton) retryButton.disabled = false; // Re-enable button on error
+  }
+}
+
+// --- Event Listener Setup ---
+
+function setupEventListeners() {
+  if (!jobsListContainer) return;
+
+  jobsListContainer.addEventListener("click", (event) => {
+    const cancelButton = event.target.closest(".job-cancel-button");
+    const retryButton = event.target.closest(".job-retry-button");
+
+    if (cancelButton) {
+      const jobId = cancelButton.dataset.jobId;
+      if (jobId) {
+        handleCancelClick(jobId);
+      }
+    } else if (retryButton) {
+      const jobId = retryButton.dataset.jobId;
+      if (jobId) {
+        handleRetryClick(jobId);
+      }
+    }
+  });
+}
+
+// Initialize event listeners when the script loads
+setupEventListeners();

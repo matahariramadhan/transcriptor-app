@@ -15,6 +15,18 @@ if PROJECT_ROOT not in sys.path:
 from transcriptor_core.pipeline import run_pipeline
 from dotenv import load_dotenv
 
+# Import or define status constants (ensure consistency with main.py)
+# If importing directly causes issues (e.g., circular imports), redefine them here.
+STATUS_PENDING = "pending"
+STATUS_PROCESSING = "processing"
+STATUS_DOWNLOADING = "downloading"
+STATUS_TRANSCRIBING = "transcribing"
+STATUS_FORMATTING = "formatting"
+STATUS_COMPLETED = "completed"
+STATUS_FAILED = "failed"
+STATUS_CANCELLING = "cancelling"
+STATUS_CANCELLED = "cancelled"
+
 # Configure logging for the processing module
 logger = logging.getLogger("TranscriptorApp.WebProcessing")
 # Ensure handlers are configured (could inherit from main app's logger setup)
@@ -40,12 +52,31 @@ def run_transcription_job_in_background(
 
     # --- Define Status Update Callback ---
     def update_status(new_status: str):
+        # Check for cancellation *before* updating status, except when setting to CANCELLED
+        if new_status != STATUS_CANCELLED and jobs_dict.get(job_id, {}).get('cancelled', False):
+            logger.info(f"Job {job_id}: Cancellation detected during status update to '{new_status}'. Setting to CANCELLED instead.")
+            if job_id in jobs_dict:
+                jobs_dict[job_id]["status"] = STATUS_CANCELLED
+            return # Don't proceed with the original status update
+
         if job_id in jobs_dict:
+            # Avoid overwriting a final state like CANCELLED with an intermediate one
+            current_status = jobs_dict[job_id].get("status")
+            if current_status == STATUS_CANCELLED and new_status != STATUS_CANCELLED:
+                 logger.warning(f"Job {job_id}: Attempted to update status from CANCELLED to {new_status}. Ignoring.")
+                 return
+
             logger.info(f"Job {job_id}: Status changing to '{new_status}'")
             jobs_dict[job_id]["status"] = new_status
-            logger.debug(f"Job {job_id}: jobs_dict updated. Current status: {jobs_dict[job_id].get('status')}") # Added debug log
+            logger.debug(f"Job {job_id}: jobs_dict updated. Current status: {jobs_dict[job_id].get('status')}")
         else:
             logger.warning(f"Job {job_id}: Tried to update status to '{new_status}', but job not found in dict.")
+
+    # --- Check for Cancellation Before Starting ---
+    if jobs_dict.get(job_id, {}).get('cancelled', False):
+        logger.info(f"Job {job_id}: Detected cancellation request before starting processing.")
+        update_status(STATUS_CANCELLED)
+        return # Exit thread
 
     # Load API key within the thread (or ensure it's passed securely)
     load_dotenv(dotenv_path=os.path.join(PROJECT_ROOT, '.env'))
@@ -53,7 +84,8 @@ def run_transcription_job_in_background(
 
     if not api_key:
         logger.error(f"Job {job_id}: LEMONFOX_API_KEY not found for background thread.")
-        jobs_dict[job_id] = {"status": "failed", "error": "API key not configured."}
+        update_status(STATUS_FAILED) # Use callback
+        jobs_dict[job_id]["error"] = "API key not configured."
         return
 
     # Define output directories relative to project root or a configurable path
@@ -70,9 +102,17 @@ def run_transcription_job_in_background(
         # jobs_dict[job_id]["status"] = "processing" # Removed: Status updated via callback now
         jobs_dict[job_id]["output_dir"] = job_output_dir # Store output path
 
+        # --- Check for Cancellation Before Running Pipeline ---
+        if jobs_dict.get(job_id, {}).get('cancelled', False):
+            logger.info(f"Job {job_id}: Detected cancellation request before running core pipeline.")
+            update_status(STATUS_CANCELLED)
+            return # Exit thread
+
         # --- Run the Core Pipeline ---
         # Pass the status update callback
         # Note: The core pipeline logs progress internally
+        # TODO: Consider adding cancellation checks *within* run_pipeline if possible,
+        #       or make run_pipeline accept a check function. For now, we only check before it starts.
         pipeline_results = run_pipeline(
             urls_to_process=urls,
             api_key=api_key,
@@ -84,12 +124,23 @@ def run_transcription_job_in_background(
     except Exception as e:
         # --- Handle critical errors during pipeline execution ---
         logger.exception(f"Job {job_id}: Critical error during background processing: {e}")
-        update_status("failed") # Use callback to set status
+        update_status(STATUS_FAILED) # Use callback to set status
         jobs_dict[job_id]["error"] = f"An unexpected error occurred: {str(e)}"
     else:
-        # --- Update Final Job Status Based on Results (if pipeline didn't crash) ---
+        # --- Check for Cancellation After Pipeline Finishes (before setting final status) ---
+        if jobs_dict.get(job_id, {}).get('cancelled', False):
+             logger.info(f"Job {job_id}: Detected cancellation request after pipeline finished. Setting status to CANCELLED.")
+             update_status(STATUS_CANCELLED)
+             # Optionally list files created before cancellation detected
+             try:
+                 jobs_dict[job_id]["files"] = [f for f in os.listdir(job_output_dir) if os.path.isfile(os.path.join(job_output_dir, f)) and not f.startswith('.')]
+             except FileNotFoundError:
+                 jobs_dict[job_id]["files"] = []
+             return # Exit thread
+
+        # --- Update Final Job Status Based on Results (if pipeline didn't crash and wasn't cancelled) ---
         if not pipeline_results.get('failed_urls'):
-            update_status("completed") # Use callback
+            update_status(STATUS_COMPLETED) # Use callback
             jobs_dict[job_id]["processed_count"] = pipeline_results.get('processed_count', len(urls))
             # Store paths to generated files
             try:
@@ -99,10 +150,10 @@ def run_transcription_job_in_background(
                  jobs_dict[job_id]["files"] = []
             logger.info(f"Job {job_id}: Completed successfully.")
         else:
-            update_status("failed") # Use callback, even for partial failures for simplicity
-            jobs_dict[job_id]["error"] = f"Processing failed for URLs: {pipeline_results['failed_urls']}"
+            update_status(STATUS_FAILED) # Use callback, even for partial failures for simplicity
+            jobs_dict[job_id]["error"] = f"Processing failed for URLs: {list(pipeline_results.get('failed_urls', {}).keys())}" # Store only URLs
             jobs_dict[job_id]["processed_count"] = pipeline_results.get('processed_count', 0)
-            jobs_dict[job_id]["failed_urls"] = pipeline_results.get('failed_urls', [])
+            jobs_dict[job_id]["failed_urls"] = pipeline_results.get('failed_urls', {}) # Store full failure details if needed elsewhere
             # List any files that might have been created before failure
             try:
                 jobs_dict[job_id]["files"] = [f for f in os.listdir(job_output_dir) if os.path.isfile(os.path.join(job_output_dir, f)) and not f.startswith('.')]
@@ -121,13 +172,14 @@ def start_job(
     """
     job_id = str(uuid.uuid4())
     jobs_dict[job_id] = {
-        "status": "pending",
+        "status": STATUS_PENDING,
         "submitted_at": time.time(),
-        "urls": urls,
-        "config": config,
+        "original_urls": urls, # Store original URLs for retry
+        "original_config": config, # Store original config for retry
         "output_dir": None, # Will be set when job runs
         "files": [],
-        "error": None
+        "error": None,
+        "cancelled": False # Initialize cancellation flag
     }
     logger.info(f"Job {job_id} created and added to queue.")
 
