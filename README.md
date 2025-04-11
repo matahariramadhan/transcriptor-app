@@ -165,6 +165,35 @@ This provides a graphical interface accessible via your web browser.
     - Monitor job progress in the "Active Jobs" list. Use the Cancel button (<i class="fas fa-times"></i>) to stop a pending or processing job, or the Retry button (<i class="fas fa-redo"></i>) to resubmit a failed job.
     - Once completed, download links for the transcript files will appear on the job card. Output files are saved locally in the `web_outputs/<job_id>/` directory within the project folder.
 
+### Running the Packaged Application (Experimental)
+
+For easier distribution without requiring users to install Python or dependencies (except `ffmpeg`), you can build a standalone executable using PyInstaller.
+
+1.  **Prerequisites for Building:**
+    - Ensure you have completed the standard installation steps above, including installing development dependencies (`pip install -r requirements-dev.txt`).
+    - Make sure `pyinstaller` is installed in your virtual environment.
+2.  **Build the Executable:**
+    - Navigate to the `transcriptor-app` directory in your terminal (with the virtual environment activated).
+    - Run the PyInstaller build command using the provided spec file:
+      ```bash
+      pyinstaller run_web_ui.spec
+      ```
+    - This will create `build` and `dist` directories. The packaged application will be inside `dist/run_web_ui`.
+3.  **Running the Packaged App:**
+    - **Important:** Ensure `ffmpeg` and `ffprobe` are installed system-wide and accessible in your system's `PATH`. This is still required by the packaged application.
+    - Copy the `.env` file (containing your `LEMONFOX_API_KEY`) into the `dist/run_web_ui` directory alongside the executable.
+    - Navigate to the `dist/run_web_ui` directory in your terminal.
+    - Run the executable:
+      ```bash
+      # On Linux/macOS
+      ./run_web_ui
+      # On Windows
+      # .\run_web_ui.exe
+      ```
+    - Access the UI in your browser at `http://127.0.0.1:8000` as usual. Output files will be created within the `dist/run_web_ui/_internal/web_outputs/` directory.
+
+**Note:** Packaging complex applications with web servers and background threads can sometimes have platform-specific issues. Test thoroughly on your target operating system.
+
 ## Project Structure
 
 The project is organized into the following main directories:

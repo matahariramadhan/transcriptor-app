@@ -5,6 +5,7 @@ import logging
 import time
 import uuid
 from typing import Dict, Any, List
+from pathlib import Path # Add this import
 
 # Add project root to Python path
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -76,10 +77,27 @@ def run_transcription_job_in_background(
     if jobs_dict.get(job_id, {}).get('cancelled', False):
         logger.info(f"Job {job_id}: Detected cancellation request before starting processing.")
         update_status(STATUS_CANCELLED)
-        return # Exit thread
+        return # Exit thread <-- Corrected indentation
 
-    # Load API key within the thread (or ensure it's passed securely)
-    load_dotenv(dotenv_path=os.path.join(PROJECT_ROOT, '.env'))
+    # --- Load API Key ---
+    # Determine the correct path to .env file, considering packaged state
+    if getattr(sys, 'frozen', False):
+        # Running in a PyInstaller bundle
+        # .env file was added to the bundle root in the .spec file
+        bundle_dir = Path(sys._MEIPASS)
+        dotenv_path = bundle_dir / '.env'
+        logger.info(f"Job {job_id}: Running frozen, attempting to load .env from {dotenv_path}")
+    else:
+        # Running as a normal script
+        # Assume .env is in the project root relative to this script's original location
+        script_dir = Path(__file__).parent.parent.parent # Navigate up to transcriptor-app
+        dotenv_path = script_dir / '.env'
+        logger.info(f"Job {job_id}: Running as script, attempting to load .env from {dotenv_path}")
+
+    loaded = load_dotenv(dotenv_path=dotenv_path, verbose=True)
+    if not loaded:
+         logger.warning(f"Job {job_id}: .env file not found or failed to load from {dotenv_path}")
+
     api_key = os.getenv("LEMONFOX_API_KEY")
 
     if not api_key:

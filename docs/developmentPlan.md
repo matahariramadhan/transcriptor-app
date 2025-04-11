@@ -41,11 +41,11 @@ This plan follows an iterative approach with a clear distinction between the ini
       - `/result/<job_id>` (GET): Return results (text content or file paths) or error details.
   4.  Implement simple in-memory storage (`jobs` dictionary in `interfaces/web/main.py`) for tracking job status and results.
   5.  Adapt `core/pipeline.py` logic (via `interfaces/web/processing.py`) to run within a background thread, updating the shared status/result storage using callbacks.
-  6.  Implement frontend JavaScript (`interfaces/web/static/*.js`) to call API endpoints, poll for status, and display results/errors dynamically.
+  6.  Implement frontend JavaScript (`interfaces/web/static/*.js`) to call API endpoints, poll for status, and display results/errors dynamically. Added Cancel/Retry functionality.
   7.  Add FastAPI, Uvicorn, Jinja2 etc. to `requirements.txt`.
-  8.  (Remaining) Package the application using **PyInstaller** (or similar) to create a distributable executable (documenting any separate `ffmpeg` installation needed).
-  9.  Create clear installation and usage instructions for the packaged application.
-  10. Publish code to a public repository (e.g., GitHub) with the MIT license.
+  8.  **(In Progress)** Package the application using **PyInstaller** (`run_web_ui.py`, `run_web_ui.spec`). Initial build successful, requires further testing and potential refinement for different platforms. Document `ffmpeg` prerequisite.
+  9.  (Remaining) Create clear installation and usage instructions for the packaged application.
+  10. (Remaining) Publish code to a public repository (e.g., GitHub) with the MIT license.
 - **Outcome:** A distributable, open-source desktop application (run via executable, accessed via localhost in browser) allowing users to transcribe videos locally using their own API key, with a non-blocking UI.
 
 ## 4. Phase 2: Commercial Scaled Web Application

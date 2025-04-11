@@ -97,6 +97,7 @@ This document outlines the testing strategy for the `TranscriptorApp` applicatio
   - **Error Handling:** Test submitting invalid URLs, check how errors are displayed on job cards. Test scenarios where background processing might fail.
   - **Responsiveness:** Basic check if the UI remains usable while jobs are processing.
   - **Cross-Browser:** Basic checks on Chrome/Firefox.
+  - **Packaged Application:** Build the application using PyInstaller (`pyinstaller run_web_ui.spec`). Run the executable from the `dist/run_web_ui` directory (after copying `.env` file). Verify the server starts, UI is accessible, and core functionality (job submission, status, results, cancel/retry) works as expected. Ensure `ffmpeg` prerequisite is met.
 
 ## 5. Pass/Fail Criteria
 

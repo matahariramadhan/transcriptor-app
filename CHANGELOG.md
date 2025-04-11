@@ -12,10 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cancel (<i class="fas fa-times"></i>) and Retry (<i class="fas fa-redo"></i>) buttons to job cards in the Web UI (`interfaces/web/`).
 - API endpoints (`/cancel/{job_id}`, `/retry/{job_id}`) and background processing logic to support cancellation (flag-based) and retries (as new jobs).
 - `conftest.py` to automatically load `.env` file for E2E tests (`tests/e2e/`).
+- PyInstaller setup (`run_web_ui.py`, `run_web_ui.spec`) for packaging the Web UI into an executable.
 
 ### Fixed
 
 - E2E tests being skipped due to API key check running before `.env` was loaded by the test environment.
+- `NameError` in PyInstaller `.spec` file due to incorrect use of `__file__`.
+- `NameError` for `Path` in packaged app (`run_web_ui.py` and `interfaces/web/processing.py`) due to missing imports.
+- API key not loading in packaged app background thread; fixed by including `.env` in bundle and adjusting load path in `interfaces/web/processing.py`.
 
 ## [1.3.0] - 2025-04-10
 
