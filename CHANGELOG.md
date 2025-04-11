@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-alpha.1] - 2025-04-11
+
 ### Added
 
 - Cancel (<i class="fas fa-times"></i>) and Retry (<i class="fas fa-redo"></i>) buttons to job cards in the Web UI (`interfaces/web/`).

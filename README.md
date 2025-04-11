@@ -1,6 +1,6 @@
 # TranscriptorApp
 
-A command-line application to download video/audio from various platforms (YouTube, TikTok, Instagram, etc.) and generate transcripts using the Lemonfox API (an OpenAI Whisper-compatible endpoint).
+An application with command-line and local web interfaces to download video/audio from various platforms (YouTube, TikTok, Instagram, etc.) and generate transcripts using the Lemonfox API (an OpenAI Whisper-compatible endpoint).
 
 Based on the technical design outlined in `docs/technical_design.md`.
 
